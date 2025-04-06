@@ -51,6 +51,9 @@ export class ManhattanMap extends BaseMap {
     this.tallBuildingsEndX = -1;
     this.tallBuildingsStartZ = -3;
     this.tallBuildingsEndZ = -1;
+    
+    // Location of the hospital block, if created
+    this.hospitalLocation = null;
   }
   
   /**
@@ -172,9 +175,12 @@ export class ManhattanMap extends BaseMap {
         } else {
           // Block is not Central Park. Check for hospital next.
           const hospitalChance = 0.1; // 10% chance for a hospital block
-          if (Math.random() < hospitalChance) {
+          if (!this.hospitalLocation && Math.random() < hospitalChance) { // Only create one hospital
              // Call the method from CityGenerator instance
              this.cityGenerator.createHospitalBlock(blockX, blockZ);
+             // Store the location
+             this.hospitalLocation = { x: blockX, z: blockZ };
+             console.log("Hospital created at:", this.hospitalLocation);
           } else {
               // Check if this is in the tall buildings district
               const isTallDistrict = (

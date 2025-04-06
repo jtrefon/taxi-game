@@ -154,9 +154,22 @@ class Game {
       this.trafficLights = this.currentMap.getTrafficLightSystems();
     }
     
+    // Determine initial vehicle spawn position
+    let initialSpawnPos = new THREE.Vector3(0, 1, 0); // Default spawn
+    if (this.currentMap && this.currentMap.hospitalLocation) {
+        const hospLoc = this.currentMap.hospitalLocation;
+        const blockSize = this.currentMap.blockSize || 50; // Get block size or default
+        const offsetX = blockSize * 0.4; // Offset to place in carpark (outside building footprint)
+        const offsetZ = blockSize * 0.4;
+        initialSpawnPos.set(hospLoc.x + offsetX, 1, hospLoc.z + offsetZ); 
+        console.log("Spawning vehicle near hospital at:", initialSpawnPos);
+    } else {
+        console.log("Hospital location not found, using default vehicle spawn.");
+    }
+    
     // Create player vehicle
     this.playerVehicle = new Vehicle(this.scene, this.physicsWorld, {
-      position: new THREE.Vector3(0, 1, 0)
+      position: initialSpawnPos
     });
     
     // Set up camera to follow player

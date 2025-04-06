@@ -49,6 +49,9 @@ export class Vehicle {
     this.createChassis();
     this.setupVehicle();
     this.createWheels();
+    
+    // Apply reset animation on initial spawn
+    this.resetState(); 
   }
   
   createChassis() {
