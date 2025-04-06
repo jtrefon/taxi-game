@@ -186,14 +186,36 @@ export class BaseMap {
     
     // 3. Add elevated sidewalks with textures - fixed to not overlap with the road
     this.addElevatedSidewalks(x, z, length, roadWidth, sidewalkWidth, sidewalkHeight, isHorizontal);
-    
-    // 4. Add pedestrian crossing if at an intersection (assuming all roads are at right angles)
-    // A simple check to identify intersections - if both width and length are similar in size
-    const isIntersection = Math.abs(length - width) < 5;
-    if (isIntersection) {
-      this.addPedestrianCrossing(x, z, roadWidth, length, isHorizontal);
-      this.addTrafficLight(x, z, roadWidth, length, isHorizontal);
+  }
+  
+  /**
+   * Creates just the road surface for an intersection area.
+   */
+  createIntersectionSurface(x, z, size) {
+    const geometry = new THREE.PlaneGeometry(size, size);
+
+    // Reuse existing road material logic if possible, otherwise simple material
+    const roadMaterial = this.roadMaterial || new THREE.MeshStandardMaterial({ color: 0x333333 });
+
+    // Apply texture if available and configured
+    const textureFactory = this.getTextureFactory();
+    const asphaltTexture = textureFactory?.getEnvironmentTexture('asphalt');
+
+    if (asphaltTexture && roadMaterial.map === undefined) { // Check if material doesn't already have a map
+        const intersectionTexture = asphaltTexture.clone(); // Clone to avoid modifying the original
+        intersectionTexture.needsUpdate = true; // Important for clones
+        intersectionTexture.repeat.set(size / 20, size / 20); // Adjust repeat scale for intersection size
+        intersectionTexture.rotation = 0; // Reset rotation
+        roadMaterial.map = intersectionTexture;
+        roadMaterial.needsUpdate = true; // Ensure material updates
     }
+
+
+    const intersectionSurface = new THREE.Mesh(geometry, roadMaterial);
+    intersectionSurface.rotation.x = -Math.PI / 2;
+    intersectionSurface.position.set(x, 0.05, z); // Same level as roads
+    intersectionSurface.receiveShadow = true;
+    this.scene.add(intersectionSurface);
   }
   
   /**

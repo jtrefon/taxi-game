@@ -59,23 +59,53 @@ export class ManhattanMap extends BaseMap {
   createRoadNetwork() {
     const blockSize = this.blockSize;
     const roadWidth = this.roadWidth;
-    const totalWidth = this.gridWidth * (blockSize + roadWidth) + roadWidth;
-    const totalHeight = this.gridHeight * (blockSize + roadWidth) + roadWidth;
-    
-    // Main avenues (north-south)
+    const halfRoadWidth = roadWidth / 2;
+    const step = blockSize + roadWidth; // Distance between centers of parallel roads
+
+    // Calculate grid boundaries
+    const minX = (-this.gridWidth / 2) * step - halfRoadWidth;
+    const maxX = (this.gridWidth / 2) * step - halfRoadWidth;
+    const minZ = (-this.gridHeight / 2) * step - halfRoadWidth;
+    const maxZ = (this.gridHeight / 2) * step - halfRoadWidth;
+
+    // Create avenues (north-south roads)
     for (let i = 0; i <= this.gridWidth; i++) {
-      const x = (i - this.gridWidth / 2) * (blockSize + roadWidth) - roadWidth / 2;
-      this.createRoad(x, 0, totalHeight, roadWidth, false);
+      const x = minX + i * step;
+      // Create road segments between intersections
+      for (let j = 0; j < this.gridHeight; j++) {
+        const zStart = minZ + j * step + halfRoadWidth;
+        const zEnd = zStart + blockSize;
+        const segmentZ = (zStart + zEnd) / 2;
+        this.createRoad(x, segmentZ, blockSize, roadWidth, false);
+      }
     }
-    
-    // Main streets (east-west)
-    for (let i = 0; i <= this.gridHeight; i++) {
-      const z = (i - this.gridHeight / 2) * (blockSize + roadWidth) - roadWidth / 2;
-      this.createRoad(0, z, totalWidth, roadWidth, true);
+
+    // Create streets (east-west roads)
+    for (let j = 0; j <= this.gridHeight; j++) {
+      const z = minZ + j * step;
+      // Create road segments between intersections
+      for (let i = 0; i < this.gridWidth; i++) {
+        const xStart = minX + i * step + halfRoadWidth;
+        const xEnd = xStart + blockSize;
+        const segmentX = (xStart + xEnd) / 2;
+        this.createRoad(segmentX, z, blockSize, roadWidth, true);
+      }
     }
-    
-    // Create special boulevard (like Broadway)
-    this.createBroadway();
+
+    // Create intersection surfaces
+    for (let i = 0; i <= this.gridWidth; i++) {
+      for (let j = 0; j <= this.gridHeight; j++) {
+        const x = minX + i * step;
+        const z = minZ + j * step;
+        this.createIntersectionSurface(x, z, roadWidth);
+        // Optionally add intersection details like crosswalks or traffic lights here
+        // Example: this.addPedestrianCrossing(x, z, roadWidth, roadWidth, true);
+        // Example: this.addTrafficLight(x, z, roadWidth, roadWidth, true);
+      }
+    }
+
+    // Re-enable Broadway creation if desired, might need adjustments
+    // this.createBroadway();
   }
   
   /**
