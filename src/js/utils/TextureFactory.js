@@ -74,34 +74,115 @@ export class TextureFactory {
   }
 
   /**
-   * Get a texture for roads, trees, or grass
-   * @param {string} type - Type of texture ('road', 'tree', 'grass')
-   * @param {string} variant - Specific variant if needed ('road_with_lines', 'road_with_crossing', etc.)
-   * @returns {THREE.Texture} A texture for the specified element
+   * Get environment texture for different parts of the city environment
+   * @param {string} type - Type of environment texture (e.g., 'road', 'sidewalk', 'grass')
+   * @param {string} [variant] - Optional variant of the texture
+   * @returns {THREE.Texture} The requested texture
    */
   getEnvironmentTexture(type, variant = null) {
-    let availableTextures;
+    const cacheKey = `env_${type}_${variant || 'default'}`;
     
-    if (variant) {
-      // Try to get the specific variant
-      const specificKey = `${type}_${variant}`;
-      if (this.textureCache.has(specificKey)) {
-        return this.textureCache.get(specificKey);
-      }
+    // Check if we already have this texture cached
+    if (this.textureCache.has(cacheKey)) {
+      return this.textureCache.get(cacheKey);
     }
     
-    // Get all textures of the requested type
-    availableTextures = Array.from(this.textureCache.keys())
-      .filter(key => key.startsWith(type));
+    // Otherwise create the appropriate texture
+    let texture;
     
-    if (availableTextures.length === 0) {
-      console.warn('No textures available for type:', type);
-      return null;
+    switch (type) {
+      case 'road':
+        texture = this.createRoadTexture();
+        break;
+      case 'asphalt':
+        texture = this.createAsphaltTexture();
+        break;
+      case 'sidewalk':
+        texture = this.createSidewalkTexture();
+        break;
+      case 'grass':
+        texture = this.createGrassTexture();
+        break;
+      case 'tree':
+        texture = this.createTreeFoliageTexture(variant || 'oak');
+        break;
+      default:
+        texture = this.createDefaultTexture();
     }
     
-    // Return a random texture of the requested type
-    const randomIndex = Math.floor(Math.random() * availableTextures.length);
-    return this.textureCache.get(availableTextures[randomIndex]);
+    // Cache the texture for future use
+    if (texture) {
+      this.textureCache.set(cacheKey, texture);
+    }
+    
+    return texture;
+  }
+
+  /**
+   * Create a realistic asphalt texture for roads
+   * @returns {THREE.Texture} The asphalt texture
+   */
+  createAsphaltTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+    
+    // Base dark asphalt color
+    ctx.fillStyle = '#222222';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Add texture and noise to the asphalt
+    for (let i = 0; i < 10000; i++) {
+      const x = Math.random() * canvas.width;
+      const y = Math.random() * canvas.height;
+      const size = Math.random() * 2 + 0.5;
+      
+      // Small noise particles with varying shades of gray
+      const grayValue = Math.floor(Math.random() * 25) + 20; // 20-45 (darker grays)
+      const colorValue = grayValue.toString(16).padStart(2, '0');
+      ctx.fillStyle = `#${colorValue}${colorValue}${colorValue}`;
+      
+      ctx.beginPath();
+      ctx.arc(x, y, size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    
+    // Add some larger aggregate texture
+    for (let i = 0; i < 500; i++) {
+      const x = Math.random() * canvas.width;
+      const y = Math.random() * canvas.height;
+      const size = Math.random() * 4 + 1;
+      
+      // Larger aggregate with slightly lighter shades
+      const grayValue = Math.floor(Math.random() * 20) + 40; // 40-60 (medium grays)
+      const colorValue = grayValue.toString(16).padStart(2, '0');
+      ctx.fillStyle = `#${colorValue}${colorValue}${colorValue}`;
+      
+      ctx.beginPath();
+      ctx.arc(x, y, size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    
+    // Add some cracks and imperfections
+    for (let i = 0; i < 20; i++) {
+      const x1 = Math.random() * canvas.width;
+      const y1 = Math.random() * canvas.height;
+      const x2 = x1 + (Math.random() * 100 - 50);
+      const y2 = y1 + (Math.random() * 100 - 50);
+      
+      ctx.strokeStyle = '#111111';
+      ctx.lineWidth = Math.random() * 2 + 0.5;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
+    
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    return texture;
   }
 
   /**
@@ -454,51 +535,145 @@ export class TextureFactory {
   }
 
   /**
-   * Create a sidewalk texture
-   * @param {number} resolution - Texture resolution
+   * Create a road texture with lane markings
+   * @returns {THREE.Texture} The road texture
    */
-  createSidewalkTexture(resolution) {
+  createRoadTexture() {
     const canvas = document.createElement('canvas');
-    canvas.width = resolution;
-    canvas.height = resolution;
+    canvas.width = 512;
+    canvas.height = 512;
     const ctx = canvas.getContext('2d');
     
-    // Base concrete color
-    const baseGray = 160 + Math.floor(Math.random() * 20);
-    ctx.fillStyle = `rgb(${baseGray},${baseGray},${baseGray})`;
-    ctx.fillRect(0, 0, resolution, resolution);
+    // Base asphalt color and texture
+    ctx.fillStyle = '#333333';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
     
-    // Add concrete tile pattern
-    const tileSize = resolution / 8;
-    ctx.strokeStyle = `rgba(120,120,120,0.5)`;
-    ctx.lineWidth = 2;
-    
-    // Horizontal lines
-    for (let y = 0; y <= resolution; y += tileSize) {
+    // Add asphalt texture with small noise particles
+    for (let i = 0; i < 8000; i++) {
+      const x = Math.random() * canvas.width;
+      const y = Math.random() * canvas.height;
+      const size = Math.random() * 2 + 0.5;
+      
+      // Small noise particles with varying shades of gray
+      const grayValue = Math.floor(Math.random() * 30) + 30; // 30-60 range
+      const colorValue = grayValue.toString(16).padStart(2, '0');
+      ctx.fillStyle = `#${colorValue}${colorValue}${colorValue}`;
+      
       ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(resolution, y);
-      ctx.stroke();
+      ctx.arc(x, y, size, 0, Math.PI * 2);
+      ctx.fill();
     }
     
-    // Vertical lines
-    for (let x = 0; x <= resolution; x += tileSize) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, resolution);
-      ctx.stroke();
-    }
+    // Add white lane marking in center
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(canvas.width / 2 - 5, 0, 10, canvas.height);
     
-    // Add subtle texture variations
-    this.addConcreteTexture(ctx, resolution);
+    // Add dashed lane markings
+    ctx.setLineDash([30, 20]);
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth = 5;
     
-    // Create texture from canvas
+    // Left lane marking
+    ctx.beginPath();
+    ctx.moveTo(canvas.width / 4, 0);
+    ctx.lineTo(canvas.width / 4, canvas.height);
+    ctx.stroke();
+    
+    // Right lane marking
+    ctx.beginPath();
+    ctx.moveTo(3 * canvas.width / 4, 0);
+    ctx.lineTo(3 * canvas.width / 4, canvas.height);
+    ctx.stroke();
+    
     const texture = new THREE.CanvasTexture(canvas);
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(1, 1);
+    return texture;
+  }
+  
+  /**
+   * Create a realistic sidewalk texture
+   * @returns {THREE.Texture} The sidewalk texture
+   */
+  createSidewalkTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
     
-    this.textureCache.set('sidewalk', texture);
+    // Base concrete color
+    ctx.fillStyle = '#CCCCCC';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Create concrete panel grid
+    const panelSize = 128; // Size of concrete panels
+    ctx.strokeStyle = '#999999';
+    ctx.lineWidth = 2;
+    
+    // Draw grid lines for concrete panels
+    for (let x = 0; x <= canvas.width; x += panelSize) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, canvas.height);
+      ctx.stroke();
+    }
+    
+    for (let y = 0; y <= canvas.height; y += panelSize) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(canvas.width, y);
+      ctx.stroke();
+    }
+    
+    // Add texture and variations to the concrete
+    for (let i = 0; i < 5000; i++) {
+      const x = Math.random() * canvas.width;
+      const y = Math.random() * canvas.height;
+      const size = Math.random() * 3 + 0.5;
+      
+      // Small texture particles with varying shades
+      const grayValue = Math.floor(Math.random() * 40) + 160; // 160-200 (varying light grays)
+      const colorValue = grayValue.toString(16).padStart(2, '0');
+      ctx.fillStyle = `#${colorValue}${colorValue}${colorValue}`;
+      
+      ctx.beginPath();
+      ctx.arc(x, y, size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    
+    // Add some cracks and imperfections
+    for (let i = 0; i < 30; i++) {
+      const x = Math.floor(Math.random() * canvas.width / panelSize) * panelSize;
+      const y = Math.floor(Math.random() * canvas.height / panelSize) * panelSize;
+      
+      ctx.strokeStyle = '#AAAAAA';
+      ctx.lineWidth = Math.random() * 1.5 + 0.5;
+      
+      // Create random crack pattern within a panel
+      ctx.beginPath();
+      let currentX = x + Math.random() * panelSize;
+      let currentY = y + Math.random() * panelSize;
+      ctx.moveTo(currentX, currentY);
+      
+      // Create a zigzag line for the crack
+      const segments = Math.floor(Math.random() * 4) + 2;
+      for (let j = 0; j < segments; j++) {
+        currentX += (Math.random() - 0.5) * panelSize * 0.5;
+        currentY += (Math.random() - 0.5) * panelSize * 0.5;
+        
+        // Keep crack within panel bounds
+        currentX = Math.max(x, Math.min(x + panelSize, currentX));
+        currentY = Math.max(y, Math.min(y + panelSize, currentY));
+        
+        ctx.lineTo(currentX, currentY);
+      }
+      ctx.stroke();
+    }
+    
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    return texture;
   }
 
   /**
@@ -1592,5 +1767,215 @@ export class TextureFactory {
       
       ctx.fillRect(x, y, size, size);
     }
+  }
+
+  /**
+   * Create a realistic grass texture
+   * @returns {THREE.Texture} The grass texture
+   */
+  createGrassTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+    
+    // Base grass color
+    ctx.fillStyle = '#2E7D32';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Create grass texture with varying colors and sizes
+    const grassColors = [
+      '#1B5E20', // Dark green
+      '#2E7D32', // Medium green
+      '#388E3C', // Regular green
+      '#43A047', // Lighter green
+      '#4CAF50', // Light green
+    ];
+    
+    // Create base grass layer with small dots
+    for (let i = 0; i < 8000; i++) {
+      const x = Math.random() * canvas.width;
+      const y = Math.random() * canvas.height;
+      const size = Math.random() * 4 + 1;
+      
+      // Random grass color
+      ctx.fillStyle = grassColors[Math.floor(Math.random() * grassColors.length)];
+      
+      ctx.beginPath();
+      ctx.arc(x, y, size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    
+    // Add grass blades
+    for (let i = 0; i < 1000; i++) {
+      const x = Math.random() * canvas.width;
+      const y = Math.random() * canvas.height;
+      const height = Math.random() * 15 + 5;
+      const width = Math.random() * 2 + 1;
+      
+      // Random grass color
+      ctx.fillStyle = grassColors[Math.floor(Math.random() * grassColors.length)];
+      
+      // Draw a grass blade as a thin rectangle
+      ctx.beginPath();
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate((Math.random() - 0.5) * Math.PI / 2); // Random angle
+      ctx.fillRect(-width/2, 0, width, height);
+      ctx.restore();
+    }
+    
+    // Add some dirt patches
+    for (let i = 0; i < 20; i++) {
+      const x = Math.random() * canvas.width;
+      const y = Math.random() * canvas.height;
+      const size = Math.random() * 20 + 10;
+      
+      // Semi-transparent dirt color
+      ctx.fillStyle = 'rgba(101, 67, 33, 0.2)'; // Brown with transparency
+      
+      ctx.beginPath();
+      ctx.arc(x, y, size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    return texture;
+  }
+
+  /**
+   * Create tree foliage texture for different tree types
+   * @param {string} type - Type of tree (oak, pine, birch, tropical)
+   * @returns {THREE.Texture} The tree foliage texture
+   */
+  createTreeFoliageTexture(type) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Base color based on tree type
+    let baseColor;
+    switch (type) {
+      case 'pine':
+        baseColor = '#2E5E20'; // Darker green for pine
+        break;
+      case 'birch':
+        baseColor = '#81C784'; // Lighter green for birch
+        break;
+      case 'tropical':
+        baseColor = '#66BB6A'; // Vibrant green for tropical
+        break;
+      case 'oak':
+      default:
+        baseColor = '#388E3C'; // Standard green for oak
+    }
+    
+    // Fill with base color
+    ctx.fillStyle = baseColor;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Add texture variation based on tree type
+    if (type === 'pine') {
+      // Pine needle texture - thin lines
+      for (let i = 0; i < 2000; i++) {
+        const x = Math.random() * canvas.width;
+        const y = Math.random() * canvas.height;
+        const length = Math.random() * 10 + 5;
+        const angle = Math.random() * Math.PI;
+        
+        ctx.strokeStyle = '#1B5E20'; // Dark green for pine needles
+        ctx.lineWidth = 1;
+        
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + Math.cos(angle) * length, y + Math.sin(angle) * length);
+        ctx.stroke();
+      }
+    } else if (type === 'birch') {
+      // Birch leaf texture - small ovals
+      for (let i = 0; i < 1000; i++) {
+        const x = Math.random() * canvas.width;
+        const y = Math.random() * canvas.height;
+        const size = Math.random() * 8 + 4;
+        
+        ctx.fillStyle = Math.random() > 0.7 ? '#A5D6A7' : '#81C784'; // Varying shades
+        
+        ctx.beginPath();
+        ctx.ellipse(x, y, size, size * 0.6, Math.random() * Math.PI, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (type === 'tropical') {
+      // Tropical leaf texture - large ovals
+      for (let i = 0; i < 50; i++) {
+        const x = Math.random() * canvas.width;
+        const y = Math.random() * canvas.height;
+        const size = Math.random() * 40 + 30;
+        
+        ctx.fillStyle = Math.random() > 0.5 ? '#43A047' : '#66BB6A'; // Varying shades
+        
+        ctx.beginPath();
+        ctx.ellipse(x, y, size, size * 0.3, Math.random() * Math.PI, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Add veins
+        ctx.strokeStyle = '#2E7D32';
+        ctx.lineWidth = 1;
+        
+        ctx.beginPath();
+        ctx.moveTo(x - size, y);
+        ctx.lineTo(x + size, y);
+        ctx.stroke();
+      }
+    } else {
+      // Oak leaf texture - medium rounded shapes
+      for (let i = 0; i < 300; i++) {
+        const x = Math.random() * canvas.width;
+        const y = Math.random() * canvas.height;
+        const size = Math.random() * 15 + 10;
+        
+        ctx.fillStyle = Math.random() > 0.6 ? '#388E3C' : '#2E7D32'; // Varying shades
+        
+        ctx.beginPath();
+        ctx.arc(x, y, size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    return texture;
+  }
+
+  /**
+   * Create a default placeholder texture
+   * @returns {THREE.Texture} A simple checkerboard texture
+   */
+  createDefaultTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    
+    // Create a simple checkerboard pattern
+    const squareSize = 32;
+    for (let x = 0; x < canvas.width; x += squareSize) {
+      for (let y = 0; y < canvas.height; y += squareSize) {
+        const isAlternate = (x / squareSize + y / squareSize) % 2 === 0;
+        ctx.fillStyle = isAlternate ? '#FF00FF' : '#00FFFF'; // Magenta and cyan checkerboard
+        ctx.fillRect(x, y, squareSize, squareSize);
+      }
+    }
+    
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    return texture;
   }
 } 

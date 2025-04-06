@@ -134,96 +134,241 @@ export class BaseMap {
   }
   
   createRoad(x, z, length, width, isHorizontal) {
-    // Road - Keep a single plane but apply texture instead of multiple geometries
-    const roadGeometry = new THREE.PlaneGeometry(
-      isHorizontal ? length : width,
-      isHorizontal ? width : length
-    );
+    // Enhanced road with multiple lanes, textures and elevation
+    const roadWidth = width;
+    const sidewalkWidth = this.sidewalkWidth;
+    const sidewalkHeight = 0.25; // Slight elevation for sidewalks
+    const laneWidth = 3.5; // Standard lane width
     
-    // Get road texture from texture factory
+    // Calculate number of lanes in each direction (minimum 2, maximum based on width)
+    const lanesPerDirection = Math.max(2, Math.floor((roadWidth - 2) / (2 * laneWidth))); 
+    const totalLanes = lanesPerDirection * 2;
+    const actualLaneWidth = (roadWidth - 2) / totalLanes; // Adjust lane width to fit the road
+    const centerLineWidth = 2; // Width of center divider
+    
+    // Get texture factory
     const textureFactory = this.getTextureFactory();
     
-    // Create material with texture
-    const roadTexture = textureFactory.getEnvironmentTexture('road');
-    const texturedRoadMaterial = new THREE.MeshStandardMaterial({
-      map: roadTexture,
+    // 1. Create base road surface
+    const roadGeometry = new THREE.PlaneGeometry(
+      isHorizontal ? length : roadWidth,
+      isHorizontal ? roadWidth : length
+    );
+    
+    // Get asphalt texture
+    const asphaltTexture = textureFactory.getEnvironmentTexture('asphalt');
+    
+    const roadMaterial = new THREE.MeshStandardMaterial({
+      map: asphaltTexture,
       roughness: 0.9,
-      metalness: 0.1
+      metalness: 0.1,
+      color: 0x333333 // Dark gray asphalt
     });
     
-    // Set texture rotation and repeat based on orientation
-    if (roadTexture) {
-      roadTexture.rotation = isHorizontal ? 0 : Math.PI / 2;
-      roadTexture.repeat.set(
-        isHorizontal ? length / 30 : width / 30, 
-        isHorizontal ? width / 30 : length / 30
+    // Set texture repeat based on road size
+    if (asphaltTexture) {
+      asphaltTexture.rotation = isHorizontal ? 0 : Math.PI / 2;
+      asphaltTexture.repeat.set(
+        isHorizontal ? length / 20 : roadWidth / 20,
+        isHorizontal ? roadWidth / 20 : length / 20
       );
-      roadTexture.needsUpdate = true;
+      asphaltTexture.needsUpdate = true;
     }
     
-    const road = new THREE.Mesh(roadGeometry, texturedRoadMaterial);
+    const road = new THREE.Mesh(roadGeometry, roadMaterial);
     road.rotation.x = -Math.PI / 2; // Rotate to horizontal
-    road.position.set(x, 0.05, z);
+    road.position.set(x, 0.05, z); // Slightly above ground to prevent z-fighting
     road.receiveShadow = true;
     this.scene.add(road);
     
-    // Add sidewalks with textures
-    this.addSidewalks(x, z, length, width, isHorizontal);
+    // 2. Create lane markings
+    this.addLaneMarkings(x, z, length, roadWidth, lanesPerDirection, actualLaneWidth, centerLineWidth, isHorizontal);
+    
+    // 3. Add elevated sidewalks with textures
+    this.addElevatedSidewalks(x, z, length, roadWidth, sidewalkWidth, sidewalkHeight, isHorizontal);
   }
   
-  addSidewalks(x, z, length, width, isHorizontal) {
-    const sidewalkWidth = this.sidewalkWidth;
-    const halfWidth = width / 2;
-    const halfLength = length / 2;
+  /**
+   * Add lane markings to the road
+   */
+  addLaneMarkings(x, z, length, roadWidth, lanesPerDirection, laneWidth, centerLineWidth, isHorizontal) {
+    const dashLength = 2; // Length of dashed line segments
+    const dashGap = 2; // Gap between dashed line segments
+    const halfRoadWidth = roadWidth / 2;
+    
+    // Create center divider (solid double yellow line)
+    const centerDividerGeometry = new THREE.PlaneGeometry(
+      isHorizontal ? length : centerLineWidth,
+      isHorizontal ? centerLineWidth : length
+    );
+    
+    const centerDividerMaterial = new THREE.MeshBasicMaterial({ color: 0xFFD700 }); // Yellow center line
+    
+    const centerDivider = new THREE.Mesh(centerDividerGeometry, centerDividerMaterial);
+    centerDivider.rotation.x = -Math.PI / 2;
+    centerDivider.position.set(x, 0.06, z); // Slightly above road surface
+    this.scene.add(centerDivider);
+    
+    // Add lane markings for each direction
+    for (let direction = 0; direction < 2; direction++) { // 0 = left side, 1 = right side
+      const directionFactor = direction === 0 ? -1 : 1;
+      
+      // Add dashed lane separators (except for outermost lane)
+      for (let lane = 1; lane < lanesPerDirection; lane++) {
+        const laneOffset = directionFactor * (centerLineWidth/2 + lane * laneWidth);
+        
+        // Create dashed line markings
+        const dashCount = Math.floor(length / (dashLength + dashGap));
+        
+        for (let i = 0; i < dashCount; i++) {
+          const dashPosition = -length/2 + i * (dashLength + dashGap) + dashLength/2;
+          
+          const dashGeometry = new THREE.PlaneGeometry(
+            isHorizontal ? dashLength : 0.1,
+            isHorizontal ? 0.1 : dashLength
+          );
+          
+          const dashMaterial = new THREE.MeshBasicMaterial({ color: 0xFFFFFF }); // White dashed lines
+          
+          const dash = new THREE.Mesh(dashGeometry, dashMaterial);
+          dash.rotation.x = -Math.PI / 2;
+          
+          // Position the dash based on orientation
+          if (isHorizontal) {
+            dash.position.set(x + dashPosition, 0.06, z + laneOffset);
+          } else {
+            dash.position.set(x + laneOffset, 0.06, z + dashPosition);
+          }
+          
+          this.scene.add(dash);
+        }
+      }
+      
+      // Add solid outer line (white)
+      const outerLineOffset = directionFactor * (halfRoadWidth - 0.1);
+      
+      const outerLineGeometry = new THREE.PlaneGeometry(
+        isHorizontal ? length : 0.2,
+        isHorizontal ? 0.2 : length
+      );
+      
+      const outerLineMaterial = new THREE.MeshBasicMaterial({ color: 0xFFFFFF });
+      
+      const outerLine = new THREE.Mesh(outerLineGeometry, outerLineMaterial);
+      outerLine.rotation.x = -Math.PI / 2;
+      
+      // Position the outer line
+      if (isHorizontal) {
+        outerLine.position.set(x, 0.06, z + outerLineOffset);
+      } else {
+        outerLine.position.set(x + outerLineOffset, 0.06, z);
+      }
+      
+      this.scene.add(outerLine);
+    }
+  }
+  
+  /**
+   * Add elevated sidewalks to both sides of the road
+   */
+  addElevatedSidewalks(x, z, length, roadWidth, sidewalkWidth, sidewalkHeight, isHorizontal) {
+    const halfRoadWidth = roadWidth / 2;
+    const halfSidewalkWidth = sidewalkWidth / 2;
+    const sidewalkY = sidewalkHeight / 2; // Position at half height for the geometry
     
     // Get texture factory and sidewalk texture
     const textureFactory = this.getTextureFactory();
     const sidewalkTexture = textureFactory.getEnvironmentTexture('sidewalk');
     
-    const texturedSidewalkMaterial = new THREE.MeshStandardMaterial({
+    const sidewalkMaterial = new THREE.MeshStandardMaterial({
       map: sidewalkTexture,
       roughness: 0.8,
-      metalness: 0.0
+      metalness: 0.0,
+      color: 0xCCCCCC // Light gray concrete
     });
     
-    // Create sidewalk geometries as planes
-    const sideGeometry = new THREE.PlaneGeometry(
-      isHorizontal ? length : sidewalkWidth,
-      isHorizontal ? sidewalkWidth : length
-    );
-    
-    // Set texture repeat based on size
-    if (sidewalkTexture) {
-      const repeatX = isHorizontal ? length / 10 : sidewalkWidth / 10;
-      const repeatY = isHorizontal ? sidewalkWidth / 10 : length / 10;
-      sidewalkTexture.repeat.set(repeatX, repeatY);
-      sidewalkTexture.needsUpdate = true;
+    // Create sidewalk geometries with height
+    for (let side = 0; side < 2; side++) {
+      const sideFactor = side === 0 ? -1 : 1;
+      const sideOffset = sideFactor * (halfRoadWidth + halfSidewalkWidth);
+      
+      // Main sidewalk surface
+      const sidewalkGeometry = new THREE.BoxGeometry(
+        isHorizontal ? length : sidewalkWidth,
+        sidewalkHeight,
+        isHorizontal ? sidewalkWidth : length
+      );
+      
+      // Set texture repeat based on size
+      if (sidewalkTexture) {
+        const repeatX = isHorizontal ? length / 10 : sidewalkWidth / 10;
+        const repeatY = isHorizontal ? sidewalkWidth / 10 : length / 10;
+        sidewalkTexture.repeat.set(repeatX, repeatY);
+        sidewalkTexture.needsUpdate = true;
+      }
+      
+      const sidewalk = new THREE.Mesh(sidewalkGeometry, sidewalkMaterial);
+      
+      // Position the sidewalk with correct elevation
+      if (isHorizontal) {
+        sidewalk.position.set(x, sidewalkY, z + sideOffset);
+      } else {
+        sidewalk.position.set(x + sideOffset, sidewalkY, z);
+      }
+      
+      sidewalk.receiveShadow = true;
+      this.scene.add(sidewalk);
+      
+      // Create curb geometry
+      const curbHeight = 0.15;
+      const curbWidth = 0.25;
+      const curbGeometry = new THREE.BoxGeometry(
+        isHorizontal ? length : curbWidth,
+        curbHeight,
+        isHorizontal ? curbWidth : length
+      );
+      
+      const curbMaterial = new THREE.MeshStandardMaterial({
+        color: 0x999999, // Medium gray concrete
+        roughness: 0.9
+      });
+      
+      const curb = new THREE.Mesh(curbGeometry, curbMaterial);
+      
+      // Position the curb at the edge between sidewalk and road
+      const curbOffset = sideFactor * (halfRoadWidth + curbWidth/2);
+      
+      if (isHorizontal) {
+        curb.position.set(x, curbHeight/2, z + curbOffset);
+      } else {
+        curb.position.set(x + curbOffset, curbHeight/2, z);
+      }
+      
+      curb.receiveShadow = true;
+      curb.castShadow = true;
+      this.scene.add(curb);
+      
+      // Add physics body for the sidewalk and curb to prevent vehicles driving on them
+      const sidewalkShape = new CANNON.Box(new CANNON.Vec3(
+        isHorizontal ? length/2 : sidewalkWidth/2,
+        sidewalkHeight/2,
+        isHorizontal ? sidewalkWidth/2 : length/2
+      ));
+      
+      const sidewalkBody = new CANNON.Body({
+        mass: 0,
+        type: CANNON.Body.STATIC
+      });
+      
+      if (isHorizontal) {
+        sidewalkBody.position.set(x, sidewalkY, z + sideOffset);
+      } else {
+        sidewalkBody.position.set(x + sideOffset, sidewalkY, z);
+      }
+      
+      sidewalkBody.addShape(sidewalkShape);
+      this.physicsWorld.addBody(sidewalkBody);
     }
-    
-    // Position offsets
-    const sideOffset = halfWidth + (sidewalkWidth / 2);
-    
-    // Upper sidewalk
-    const upperSidewalk = new THREE.Mesh(sideGeometry, texturedSidewalkMaterial);
-    upperSidewalk.rotation.x = -Math.PI / 2; // Rotate to horizontal
-    upperSidewalk.position.set(
-      isHorizontal ? x : x - sideOffset + sidewalkWidth / 2,
-      0.1,
-      isHorizontal ? z - sideOffset + sidewalkWidth / 2 : z
-    );
-    upperSidewalk.receiveShadow = true;
-    this.scene.add(upperSidewalk);
-    
-    // Lower sidewalk
-    const lowerSidewalk = new THREE.Mesh(sideGeometry, texturedSidewalkMaterial);
-    lowerSidewalk.rotation.x = -Math.PI / 2; // Rotate to horizontal
-    lowerSidewalk.position.set(
-      isHorizontal ? x : x + sideOffset - sidewalkWidth / 2,
-      0.1,
-      isHorizontal ? z + sideOffset - sidewalkWidth / 2 : z
-    );
-    lowerSidewalk.receiveShadow = true;
-    this.scene.add(lowerSidewalk);
   }
   
   createPark(x, z, width, height) {
