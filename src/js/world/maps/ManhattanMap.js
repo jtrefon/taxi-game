@@ -145,17 +145,21 @@ export class ManhattanMap extends BaseMap {
     const buildingCount = 1;
     const blockSize = this.blockSize;
     
+    // Calculate maximum building size to prevent street overlap
+    const maxBuildingWidth = blockSize * 0.8; // 80% of block size
+    const maxBuildingDepth = blockSize * 0.8; // 80% of block size
+    
     for (let i = 0; i < buildingCount; i++) {
       // Tall skyscrapers, but with reduced maximum height
       const height = 80 + Math.random() * 80; // 80-160 height (reduced from 200)
       
-      // Size takes up more space but still keeps some margin
-      const width = 20 + Math.random() * 15;
-      const depth = 20 + Math.random() * 15;
+      // Size takes up more space but still keeps some margin from the street
+      const width = Math.min(20 + Math.random() * 15, maxBuildingWidth);
+      const depth = Math.min(20 + Math.random() * 15, maxBuildingDepth);
       
-      // Position with some slight variation if multiple buildings
-      const offsetX = 0; // No offset with single building
-      const offsetZ = 0; // No offset with single building
+      // No offsets with single building
+      const offsetX = 0;
+      const offsetZ = 0;
       
       // Material index for glass buildings
       const materialIndex = 1; // Blue glass material
@@ -175,8 +179,8 @@ export class ManhattanMap extends BaseMap {
     // Use perimeter layout for residential blocks
     // This will position buildings around the edges of the block with space in the middle
     
-    const buildingDepth = 12; // Standard depth for buildings facing the street
-    const distFromEdge = blockSize / 2 - buildingDepth / 2 - 2; // Position near the edge
+    const buildingDepth = 10; // Standard depth for buildings facing the street (reduced for safety)
+    const safeDistFromEdge = blockSize / 2 - buildingDepth / 2 - 5; // Add more margin to stay away from streets
     
     // Randomly select 1-2 sides to place buildings on (reduced from 2-4)
     const sides = [0, 1, 2, 3].sort(() => Math.random() - 0.5).slice(0, 1 + Math.floor(Math.random() * 2));
@@ -190,8 +194,9 @@ export class ManhattanMap extends BaseMap {
         // Medium sized buildings with reduced height
         const height = 15 + Math.random() * 15; // 15-30 height (reduced from 15-40)
         
-        // Width varies based on how many buildings on this side
-        const buildingWidth = blockSize / (buildingsOnSide + 0.5) * 0.8;
+        // Width varies based on how many buildings on this side, but with a safety margin
+        const maxWidth = (blockSize * 0.7) / buildingsOnSide; // 70% of available block side
+        const buildingWidth = Math.min(blockSize / (buildingsOnSide + 0.5) * 0.8, maxWidth);
         
         // Position along the side
         let posX = x;
@@ -205,20 +210,20 @@ export class ManhattanMap extends BaseMap {
         switch (side) {
           case 0: // North
             posX = x + offset;
-            posZ = z - distFromEdge;
+            posZ = z - safeDistFromEdge;
             break;
           case 1: // East
-            posX = x + distFromEdge;
+            posX = x + safeDistFromEdge;
             posZ = z + offset;
             finalWidth = buildingDepth;
             finalDepth = buildingWidth;
             break;
           case 2: // South
             posX = x + offset;
-            posZ = z + distFromEdge;
+            posZ = z + safeDistFromEdge;
             break;
           case 3: // West
-            posX = x - distFromEdge;
+            posX = x - safeDistFromEdge;
             posZ = z + offset;
             finalWidth = buildingDepth;
             finalDepth = buildingWidth;
@@ -228,8 +233,11 @@ export class ManhattanMap extends BaseMap {
         // Randomly select a material for variety
         const materialIndex = Math.floor(Math.random() * this.buildingMaterials.length);
         
-        // Create a building
-        this.createBuilding(posX, posZ, finalWidth, finalDepth, height, materialIndex);
+        // Create a building with safety checks
+        if (Math.abs(posX) < (this.gridWidth * (this.blockSize + this.roadWidth) / 2) - this.roadWidth &&
+            Math.abs(posZ) < (this.gridHeight * (this.blockSize + this.roadWidth) / 2) - this.roadWidth) {
+          this.createBuilding(posX, posZ, finalWidth, finalDepth, height, materialIndex);
+        }
       }
     }
   }
@@ -348,10 +356,11 @@ export class ManhattanMap extends BaseMap {
   addStreetLamps() {
     const blockSize = this.blockSize;
     const roadWidth = this.roadWidth;
+    const sidewalkWidth = this.sidewalkWidth;
     // Increase lamp spacing to reduce total number
     const lampSpacing = 120; // Much larger spacing between lamps
     
-    // Place lamps along horizontal streets
+    // Place lamps along horizontal streets - on the sidewalks
     for (let z = 0; z <= this.gridHeight; z += 2) { // Only every other street
       const streetZ = (z - this.gridHeight / 2) * (blockSize + roadWidth);
       for (let x = 0; x < this.gridWidth * (blockSize + roadWidth) * 2; x += lampSpacing) {
@@ -368,12 +377,14 @@ export class ManhattanMap extends BaseMap {
         );
         
         if (!(isInParkX && isInParkZ)) {
-          this.createStreetLamp(lampX, streetZ - roadWidth/2 + 1);
+          // Place lamp on the sidewalk (roadWidth/2 + sidewalkWidth/2)
+          const lampPositionZ = streetZ - (roadWidth/2 + sidewalkWidth/2);
+          this.createStreetLamp(lampX, lampPositionZ);
         }
       }
     }
     
-    // Place lamps along vertical streets
+    // Place lamps along vertical streets - on the sidewalks
     for (let x = 0; x <= this.gridWidth; x += 2) { // Only every other street
       const streetX = (x - this.gridWidth / 2) * (blockSize + roadWidth);
       for (let z = 0; z < this.gridHeight * (blockSize + roadWidth) * 2; z += lampSpacing) {
@@ -390,7 +401,9 @@ export class ManhattanMap extends BaseMap {
         );
         
         if (!(isInParkX && isInParkZ)) {
-          this.createStreetLamp(streetX - roadWidth/2 + 1, lampZ);
+          // Place lamp on the sidewalk (roadWidth/2 + sidewalkWidth/2)
+          const lampPositionX = streetX - (roadWidth/2 + sidewalkWidth/2);
+          this.createStreetLamp(lampPositionX, lampZ);
         }
       }
     }
@@ -439,6 +452,7 @@ export class ManhattanMap extends BaseMap {
   addTrafficLights() {
     const blockSize = this.blockSize;
     const roadWidth = this.roadWidth;
+    const sidewalkWidth = this.sidewalkWidth;
     
     // Place traffic lights at only a few major intersections
     for (let x = 0; x <= this.gridWidth; x += 4) { // Every 4th intersection
@@ -457,7 +471,10 @@ export class ManhattanMap extends BaseMap {
         );
         
         if (!(isInParkX && isInParkZ)) {
-          this.createTrafficLight(intersectionX + roadWidth/2, intersectionZ + roadWidth/2);
+          // Place traffic light at the corner of the intersection (northwest corner)
+          const lightX = intersectionX - (roadWidth/2) - (sidewalkWidth/2);
+          const lightZ = intersectionZ - (roadWidth/2) - (sidewalkWidth/2);
+          this.createTrafficLight(lightX, lightZ);
         }
       }
     }
