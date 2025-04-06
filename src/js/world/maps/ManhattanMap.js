@@ -427,43 +427,64 @@ export class ManhattanMap extends BaseMap {
     const halfSidewalkWidth = sidewalkWidth / 2;
     const sidewalkOffset = halfRoadWidth + halfSidewalkWidth; // Distance from road center to sidewalk center
 
-    const lampSpacing = 80; // Reduced spacing a bit for more lamps
+    const lampSpacing = 40; // Adjust spacing as needed
 
     // Calculate grid boundaries for iteration
-    const minX = (-this.gridWidth / 2) * step;
-    const maxX = (this.gridWidth / 2) * step;
-    const minZ = (-this.gridHeight / 2) * step;
-    const maxZ = (this.gridHeight / 2) * step;
+    const minGridX = -this.gridWidth / 2;
+    const minGridZ = -this.gridHeight / 2;
 
-    // Place lamps along horizontal streets (East-West)
-    // Iterate through street centerlines
-    for (let j = 0; j <= this.gridHeight; j++) {
-      const streetZ = minZ + j * step - halfRoadWidth;
-      // Iterate along the street
-      for (let streetX = minX - halfRoadWidth; streetX <= maxX + halfRoadWidth; streetX += lampSpacing) {
-        // Place on both North and South sidewalks
-        const lampZ_North = streetZ - sidewalkOffset;
-        const lampZ_South = streetZ + sidewalkOffset;
-        // TODO: Add check to avoid placing lamps within Central Park bounds
-        this.createStreetLamp(streetX, lampZ_North);
-        this.createStreetLamp(streetX, lampZ_South);
+    // Place lamps along horizontal street segments (East-West)
+    for (let j = 0; j <= this.gridHeight; j++) { // Iterate through horizontal grid lines
+      const streetZ = (minGridZ + j) * step - halfRoadWidth; // Center Z of the horizontal road
+      const lampZ_North = streetZ - sidewalkOffset;
+      const lampZ_South = streetZ + sidewalkOffset;
+
+      for (let i = 0; i < this.gridWidth; i++) { // Iterate through blocks horizontally
+        // Calculate segment boundaries for this block
+        const segmentStartX = (minGridX + i) * step + halfRoadWidth;
+        const segmentEndX = segmentStartX + blockSize;
+
+        // Check if segment is inside Central Park (simplified check)
+        const gridX = i;
+        const gridZ = j;
+        const isInPark = (
+          gridX >= this.centralParkX && gridX < this.centralParkX + this.centralParkWidth &&
+          gridZ >= this.centralParkY && gridZ < this.centralParkY + this.centralParkHeight
+        );
+        if (isInPark) continue; // Skip placing lamps in park segments
+
+        // Place lamps along this segment
+        for (let lampX = segmentStartX + lampSpacing / 2; lampX < segmentEndX; lampX += lampSpacing) {
+          this.createStreetLamp(lampX, lampZ_North);
+          this.createStreetLamp(lampX, lampZ_South);
+        }
       }
     }
 
-    // Place lamps along vertical avenues (North-South)
-    // Iterate through avenue centerlines
-    for (let i = 0; i <= this.gridWidth; i++) {
-      const avenueX = minX + i * step - halfRoadWidth;
-      // Iterate along the avenue
-      for (let avenueZ = minZ - halfRoadWidth; avenueZ <= maxZ + halfRoadWidth; avenueZ += lampSpacing) {
-        // Place on both West and East sidewalks
-        const lampX_West = avenueX - sidewalkOffset;
-        const lampX_East = avenueX + sidewalkOffset;
-        // TODO: Add check to avoid placing lamps within Central Park bounds
-        // Avoid placing on the same spot as horizontal lamps (roughly)
-        if (Math.abs(avenueZ % lampSpacing) > sidewalkWidth * 2) { // Simple check to reduce overlap
-          this.createStreetLamp(lampX_West, avenueZ);
-          this.createStreetLamp(lampX_East, avenueZ);
+    // Place lamps along vertical avenue segments (North-South)
+    for (let i = 0; i <= this.gridWidth; i++) { // Iterate through vertical grid lines
+      const avenueX = (minGridX + i) * step - halfRoadWidth; // Center X of the vertical road
+      const lampX_West = avenueX - sidewalkOffset;
+      const lampX_East = avenueX + sidewalkOffset;
+
+      for (let j = 0; j < this.gridHeight; j++) { // Iterate through blocks vertically
+        // Calculate segment boundaries for this block
+        const segmentStartZ = (minGridZ + j) * step + halfRoadWidth;
+        const segmentEndZ = segmentStartZ + blockSize;
+
+        // Check if segment is inside Central Park (simplified check)
+        const gridX = i;
+        const gridZ = j;
+        const isInPark = (
+          gridX >= this.centralParkX && gridX < this.centralParkX + this.centralParkWidth &&
+          gridZ >= this.centralParkY && gridZ < this.centralParkY + this.centralParkHeight
+        );
+        if (isInPark) continue; // Skip placing lamps in park segments
+
+        // Place lamps along this segment
+        for (let lampZ = segmentStartZ + lampSpacing / 2; lampZ < segmentEndZ; lampZ += lampSpacing) {
+          this.createStreetLamp(lampX_West, lampZ);
+          this.createStreetLamp(lampX_East, lampZ);
         }
       }
     }
