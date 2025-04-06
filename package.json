@@ -1,0 +1,18 @@
+{
+  "name": "taxi-driver-3d",
+  "version": "1.0.0",
+  "description": "3D open world taxi driving game",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "three": "^0.159.0",
+    "cannon-es": "^0.20.0"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
+} 
