@@ -1978,4 +1978,131 @@ export class TextureFactory {
     texture.wrapT = THREE.RepeatWrapping;
     return texture;
   }
+  
+  /**
+   * Create a hospital building texture with red cross and hospital text
+   * @param {number} resolution - Texture resolution (width/height)
+   * @returns {THREE.Texture} The hospital texture
+   */
+  createHospitalTexture(resolution = 512) {
+    const textureKey = 'hospital';
+    
+    // Check if we already have the texture cached
+    if (this.textureCache.has(textureKey)) {
+      return this.textureCache.get(textureKey);
+    }
+    
+    const canvas = document.createElement('canvas');
+    canvas.width = resolution;
+    canvas.height = resolution;
+    const ctx = canvas.getContext('2d');
+    
+    // Base color - light gray/white for hospital
+    ctx.fillStyle = '#f5f5f5';
+    ctx.fillRect(0, 0, resolution, resolution);
+    
+    // Add texture and subtle pattern
+    for (let i = 0; i < 5000; i++) {
+      const x = Math.random() * resolution;
+      const y = Math.random() * resolution;
+      const size = Math.random() * 2 + 0.5;
+      
+      // Small texture particles with varying shades of gray
+      const grayValue = Math.floor(Math.random() * 20) + 230; // 230-250 (very light grays)
+      const colorValue = grayValue.toString(16).padStart(2, '0');
+      ctx.fillStyle = `#${colorValue}${colorValue}${colorValue}`;
+      
+      ctx.beginPath();
+      ctx.arc(x, y, size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    
+    // Window grid pattern
+    const windowRows = 8;
+    const windowCols = 6;
+    const windowWidth = resolution / windowCols;
+    const windowHeight = resolution / windowRows;
+    
+    // Draw windows
+    for (let row = 0; row < windowRows; row++) {
+      for (let col = 0; col < windowCols; col++) {
+        // Skip some windows for the red cross area
+        const isCrossVertical = col === Math.floor(windowCols / 2) || col === Math.floor(windowCols / 2) - 1;
+        const isCrossHorizontal = row === Math.floor(windowRows / 2) || row === Math.floor(windowRows / 2) - 1;
+        
+        // Skip windows where the cross will be
+        if ((isCrossVertical && row >= windowRows * 0.25 && row <= windowRows * 0.75) ||
+            (isCrossHorizontal && col >= windowCols * 0.25 && col <= windowCols * 0.75)) {
+          continue;
+        }
+        
+        // Window frame
+        ctx.fillStyle = '#e0e0e0';
+        ctx.fillRect(
+          col * windowWidth + 2,
+          row * windowHeight + 2,
+          windowWidth - 4,
+          windowHeight - 4
+        );
+        
+        // Window glass
+        const isLit = Math.random() < 0.5; // 50% chance window is lit
+        
+        if (isLit) {
+          ctx.fillStyle = 'rgba(255,255,170,0.9)';
+        } else {
+          ctx.fillStyle = 'rgba(180,180,200,0.8)';
+        }
+        
+        // Glass pane inside frame
+        ctx.fillRect(
+          col * windowWidth + 4,
+          row * windowHeight + 4,
+          windowWidth - 8,
+          windowHeight - 8
+        );
+      }
+    }
+    
+    // Draw large red cross
+    ctx.fillStyle = '#e53935'; // Red
+    
+    // Vertical bar of cross
+    const crossWidth = resolution * 0.15;
+    const crossHeight = resolution * 0.5;
+    ctx.fillRect(
+      (resolution - crossWidth) / 2,
+      (resolution - crossHeight) / 2,
+      crossWidth,
+      crossHeight
+    );
+    
+    // Horizontal bar of cross
+    ctx.fillRect(
+      (resolution - crossHeight) / 2,
+      (resolution - crossWidth) / 2,
+      crossHeight,
+      crossWidth
+    );
+    
+    // Draw "HOSPITAL" text
+    ctx.fillStyle = '#000000';
+    const fontSize = resolution * 0.08;
+    ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    
+    // Draw text at the bottom of the texture
+    ctx.fillText('HOSPITAL', resolution / 2, resolution * 0.95);
+    
+    // Create texture from canvas
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    
+    // Cache the texture
+    this.textureCache.set(textureKey, texture);
+    
+    return texture;
+  }
 } 

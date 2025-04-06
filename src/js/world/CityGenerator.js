@@ -51,6 +51,12 @@ export class CityGenerator {
       color: 0x2e8b57, 
       roughness: 1.0 
     });
+
+    // Carpark material (added)
+    this.carparkMaterial = new THREE.MeshStandardMaterial({
+      color: 0x666666, // Darker grey than sidewalk
+      roughness: 0.9
+    });
   }
   
   generateCity(width, height) {
@@ -60,8 +66,11 @@ export class CityGenerator {
         const blockX = (x - width / 2) * (this.blockSize + this.roadWidth);
         const blockZ = (z - height / 2) * (this.blockSize + this.roadWidth);
         
-        // Increase park chance from 20% to 40%
-        if (Math.random() < 0.4) {
+        // Determine block type: 10% hospital, 30% park, 60% regular block
+        const rand = Math.random();
+        if (rand < 0.1) { 
+          this.createHospitalBlock(blockX, blockZ);
+        } else if (rand < 0.4) { 
           this.createPark(blockX, blockZ);
         } else {
           this.createCityBlock(blockX, blockZ);
@@ -401,5 +410,157 @@ export class CityGenerator {
     });
     benchBody.addShape(benchShape);
     this.physicsWorld.addBody(benchBody);
+  }
+
+  // New method to create hospital blocks
+  createHospitalBlock(blockX, blockZ) {
+    const baseWidth = this.blockSize;
+    const baseDepth = this.blockSize;
+    const baseHeight = 0.5; // Slightly raised base
+
+    // 1. Create the base for the hospital complex
+    const baseGeometry = new THREE.BoxGeometry(baseWidth, baseHeight, baseDepth);
+    const base = new THREE.Mesh(baseGeometry, this.carparkMaterial); // Use carpark material for the base
+    base.position.set(blockX, baseHeight / 2, blockZ);
+    base.receiveShadow = true;
+    this.scene.add(base);
+
+    // Add physics for the base
+    const baseShape = new CANNON.Box(new CANNON.Vec3(baseWidth / 2, baseHeight / 2, baseDepth / 2));
+    const baseBody = new CANNON.Body({
+      mass: 0, // Static
+      position: new CANNON.Vec3(blockX, baseHeight / 2, blockZ)
+    });
+    baseBody.addShape(baseShape);
+    this.physicsWorld.addBody(baseBody);
+
+    // 2. Define hospital dimensions (taller and wider)
+    const hospWidth = baseWidth * 0.5; // 50% of block width (reduced from 60%)
+    const hospDepth = baseDepth * 0.5; // 50% of block depth (reduced from 60%)
+    const hospHeight = 150; // Significantly taller
+
+    // 3. Create the main hospital building on the base
+    // Create the building using the standard method but don't position it yet
+    const hospitalBuilding = this.createBuilding(
+        blockX, // Centered X
+        blockZ, // Centered Z
+        hospWidth,
+        hospDepth,
+        hospHeight
+    );
+
+    // 4. Apply hospital-specific texture
+    this.textureService.applyTexture(hospitalBuilding, {
+      type: 'hospital',
+      height: hospHeight,
+      positionKey: `hospital_${blockX.toFixed(1)}_${blockZ.toFixed(1)}`
+    });
+
+    // 5. Adjust hospital building position to sit on the base
+    hospitalBuilding.position.y = baseHeight + hospHeight / 2;
+
+    // Ensure the physics body is also correctly positioned
+    // Find the physics body associated with the hospital building (assuming last added non-static body)
+    const hospitalBody = this.physicsWorld.bodies.find(body => 
+      body.mass === 0 && 
+      body.position.x === blockX && 
+      body.position.z === blockZ && 
+      body !== baseBody
+    );
+    
+    if (hospitalBody) {
+        hospitalBody.position.y = baseHeight + hospHeight / 2;
+    } else {
+        console.warn("Could not find physics body for hospital building to adjust height.");
+        // Re-create physics body if needed
+        const shape = new CANNON.Box(new CANNON.Vec3(hospWidth / 2, hospHeight / 2, hospDepth / 2));
+        const body = new CANNON.Body({
+          mass: 0, // Static body
+          position: new CANNON.Vec3(blockX, baseHeight + hospHeight / 2, blockZ)
+        });
+        body.addShape(shape);
+        this.physicsWorld.addBody(body);
+    }
+
+    // 6. Add parking lines to the base, avoiding the hospital footprint
+    this.addParkingLines(blockX, blockZ, baseWidth, baseDepth, baseHeight, hospWidth, hospDepth);
+  }
+
+  // New method to add parking lines
+  addParkingLines(blockX, blockZ, baseWidth, baseDepth, baseHeight, avoidWidth, avoidDepth) {
+    const lineMaterial = new THREE.MeshStandardMaterial({ color: 0xFFFFFF });
+    const lineWidth = 0.15;
+    const lineThickness = 0.05; // How much the line sits above the base
+    const lineY = baseHeight + lineThickness / 2; // Position slightly above base
+
+    const spaceWidth = 5;
+    const spaceLength = 7;
+    const halfAvoidW = avoidWidth / 2;
+    const halfAvoidD = avoidDepth / 2;
+    const halfBaseW = baseWidth / 2;
+    const halfBaseD = baseDepth / 2;
+    
+    // Add safety margin to ensure lines stay within block and away from edges
+    const safetyMargin = 3; // 3 units margin from the edge of the block
+    const effectiveHalfBaseW = halfBaseW - safetyMargin;
+    const effectiveHalfBaseD = halfBaseD - safetyMargin;
+
+    // Function to check if a point is within the hospital footprint
+    const isInsideAvoidance = (px, pz) => {
+      return px > blockX - halfAvoidW && px < blockX + halfAvoidW &&
+             pz > blockZ - halfAvoidD && pz < blockZ + halfAvoidD;
+    };
+
+    // Draw lines parallel to Z-axis (Vertical lines)
+    for (let x = -effectiveHalfBaseW + spaceWidth; x < effectiveHalfBaseW; x += spaceWidth) {
+        const lineX = blockX + x;
+        const startZ = blockZ - effectiveHalfBaseD;
+        const endZ = blockZ + effectiveHalfBaseD;
+
+        // Check segments against avoidance zone
+        let currentStartZ = startZ;
+        while(currentStartZ < endZ) {
+            if (isInsideAvoidance(lineX, currentStartZ + spaceLength/2)) {
+                 // Skip forward if the middle of the next potential line is inside
+                 currentStartZ += spaceLength;
+                 continue;
+            }
+             if (isInsideAvoidance(lineX, currentStartZ + (spaceLength/2) * 1.5)) { // Check slightly further
+                 currentStartZ += spaceLength;
+                 continue;
+             }
+
+             // Draw the line segment if it's reasonably outside
+            const linePosZ = currentStartZ + spaceLength/2;
+             if (linePosZ + spaceLength/2 <= endZ) { // Ensure line doesn't exceed boundary
+                const lineGeometry = new THREE.BoxGeometry(lineWidth, lineThickness, spaceLength);
+                const line = new THREE.Mesh(lineGeometry, lineMaterial);
+                line.position.set(lineX, lineY, linePosZ);
+                this.scene.add(line);
+             }
+             currentStartZ += spaceLength * 1.5; // Move to next potential spot with gap
+        }
+    }
+
+    // Draw lines parallel to X-axis (Horizontal lines) - in a grid pattern for parking spots
+    for (let z = -effectiveHalfBaseD + spaceWidth; z < effectiveHalfBaseD; z += spaceWidth * 1.5) {
+        const lineZ = blockZ + z;
+        
+        // Only draw X lines in areas away from the hospital
+        if (lineZ > blockZ - halfAvoidD && lineZ < blockZ + halfAvoidD) {
+            continue; // Skip this Z-row if it intersects with the hospital
+        }
+        
+        // Draw a line along the X axis for this row
+        for (let x = -effectiveHalfBaseW + spaceWidth; x < effectiveHalfBaseW; x += spaceWidth * 3) {
+            const lineX = blockX + x;
+            
+            // Create a perpendicular line to mark a parking spot
+            const lineGeometry = new THREE.BoxGeometry(spaceWidth * 2, lineThickness, lineWidth);
+            const line = new THREE.Mesh(lineGeometry, lineMaterial);
+            line.position.set(lineX + spaceWidth, lineY, lineZ);
+            this.scene.add(line);
+        }
+    }
   }
 } 

@@ -84,10 +84,17 @@ export class BuildingTextureService {
     }
     
     // Get texture and apply it to building material
-    const texture = this.textureFactory.getFacadeTexture(
-      buildingOptions.type, 
-      buildingOptions.positionKey
-    );
+    let texture;
+    
+    // Special case for hospital type
+    if (buildingOptions.type === 'hospital') {
+      texture = this.textureFactory.createHospitalTexture(512);
+    } else {
+      texture = this.textureFactory.getFacadeTexture(
+        buildingOptions.type, 
+        buildingOptions.positionKey
+      );
+    }
     
     if (texture) {
       let newMaterial;

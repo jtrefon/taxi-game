@@ -148,7 +148,7 @@ export class ManhattanMap extends BaseMap {
         const blockX = (x - this.gridWidth / 2 + 0.5) * (blockSize + roadWidth);
         const blockZ = (z - this.gridHeight / 2 + 0.5) * (blockSize + roadWidth);
         
-        // Check if this block should be Central Park
+        // Check if this block should be Central Park first
         const isCentralPark = (
           x >= this.centralParkX && 
           x < this.centralParkX + this.centralParkWidth &&
@@ -161,29 +161,36 @@ export class ManhattanMap extends BaseMap {
           const parkWidth = this.centralParkWidth * blockSize + (this.centralParkWidth - 1) * roadWidth;
           const parkHeight = this.centralParkHeight * blockSize + (this.centralParkHeight - 1) * roadWidth;
           
-          // Calculate the center of the park
-          const parkCenterX = blockX;
-          const parkCenterZ = blockZ;
+          // Calculate the center of the park (adjusting for multi-block size)
+          const parkCenterX = (this.centralParkX - this.gridWidth / 2 + this.centralParkWidth / 2) * (blockSize + roadWidth);
+          const parkCenterZ = (this.centralParkY - this.gridHeight / 2 + this.centralParkHeight / 2) * (blockSize + roadWidth);
           
+          // Only create the park once, when we're at its top-left corner grid cell
           if (x === this.centralParkX && z === this.centralParkY) {
-            // Only create the park once, when we're at its top-left corner
             this.createPark(parkCenterX, parkCenterZ, parkWidth, parkHeight);
           }
         } else {
-          // Check if this is in the tall buildings district
-          const isTallDistrict = (
-            x >= this.tallBuildingsStartX && 
-            x <= this.tallBuildingsEndX &&
-            z >= this.tallBuildingsStartZ && 
-            z <= this.tallBuildingsEndZ
-          );
-          
-          // Use different building generation strategies based on the district
-          if (isTallDistrict) {
-            this.createFinancialDistrictBlock(blockX, blockZ);
+          // Block is not Central Park. Check for hospital next.
+          const hospitalChance = 0.1; // 10% chance for a hospital block
+          if (Math.random() < hospitalChance) {
+             // Call the method from CityGenerator instance
+             this.cityGenerator.createHospitalBlock(blockX, blockZ);
           } else {
-            // Regular blocks with medium density
-            this.createResidentialBlock(blockX, blockZ);
+              // Check if this is in the tall buildings district
+              const isTallDistrict = (
+                x >= this.tallBuildingsStartX && 
+                x <= this.tallBuildingsEndX &&
+                z >= this.tallBuildingsStartZ && 
+                z <= this.tallBuildingsEndZ
+              );
+              
+              // Use different building generation strategies based on the district
+              if (isTallDistrict) {
+                this.createFinancialDistrictBlock(blockX, blockZ);
+              } else {
+                // Regular blocks with medium density
+                this.createResidentialBlock(blockX, blockZ);
+              }
           }
         }
       }

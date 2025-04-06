@@ -723,6 +723,9 @@ export class BaseMap {
     
     // Add trees using textured 3D models instead of billboards
     this.addTexturedTrees(x, z, width, height);
+    
+    // Add benches using traditional geometry to maintain collisions
+    this.addParkBenches(x, z, width, height);
   }
   
   /**
@@ -761,7 +764,7 @@ export class BaseMap {
     }
     
     // Add benches using traditional geometry to maintain collisions
-    this.addParkBenches(x, z, width, height);
+    // this.addParkBenches(x, z, width, height); // Already called in createPark
   }
   
   /**
@@ -841,9 +844,6 @@ export class BaseMap {
           coneSize *= 0.75;
           coneHeight *= 0.9;
         }
-        
-        // Create collision cylinder
-        const pineCollisionGeo = new THREE.CylinderGeometry(1.5, 1.5, trunkHeight + coneHeight, 8);
         break;
         
       case 'birch':
@@ -892,9 +892,6 @@ export class BaseMap {
           
           treeGroup.add(cluster);
         }
-        
-        // Create collision cylinder
-        const birchCollisionGeo = new THREE.CylinderGeometry(crownRadius, crownRadius, trunkHeight + crownHeight, 8);
         break;
         
       case 'tropical':
@@ -984,9 +981,6 @@ export class BaseMap {
           backFrond.rotation.y = Math.PI; // Flip to other side
           treeGroup.add(backFrond);
         }
-        
-        // Create collision cylinder
-        const tropicalCollisionGeo = new THREE.CylinderGeometry(frondLength, 0.5, trunkHeight, 8);
         break;
         
       case 'oak':
@@ -1074,15 +1068,12 @@ export class BaseMap {
           
           treeGroup.add(cluster);
         }
-        
-        // Create collision cylinder
-        const oakCollisionGeo = new THREE.CylinderGeometry(crownRadius, crownRadius, trunkHeight + crownRadius * 2, 8);
     }
     
     // Add tree to scene
     this.scene.add(treeGroup);
     
-    // Create invisible collision cylinder
+    // Create invisible collision cylinder for physics
     const collisionHeight = type === 'pine' ? 6 * heightScale : 
                            type === 'tropical' ? 4 * heightScale :
                            trunkHeight + (crownHeight || crownRadius * 2);
@@ -1091,29 +1082,18 @@ export class BaseMap {
                            type === 'tropical' ? 2 * baseScale :
                            (crownRadius || 1.5) * 0.8;
                            
-    const collisionGeo = new THREE.CylinderGeometry(
-      collisionRadius, collisionRadius, collisionHeight, 8
-    );
-    const collisionMaterial = new THREE.MeshBasicMaterial({
-      visible: false
-    });
-    const collisionMesh = new THREE.Mesh(collisionGeo, collisionMaterial);
-    collisionMesh.position.set(x, collisionHeight / 2, z);
-    
     // Add physics for the tree
     this.physicsWorld.addBody(
       new CANNON.Body({
         mass: 0,
-        shape: new CANNON.Cylinder(
+        shape: new CANNON.Cylinder( // Use radius/height directly
           collisionRadius, collisionRadius, collisionHeight, 8
         ),
         position: new CANNON.Vec3(x, collisionHeight / 2, z)
       })
     );
     
-    this.scene.add(collisionMesh);
-    
-    return treeGroup;
+    return treeGroup; // Return the visual group
   }
   
   /**
