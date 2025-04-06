@@ -395,8 +395,9 @@ export class BaseMap {
    */
   createIntersectionCorners(x, z, roadWidth, sidewalkWidth, sidewalkHeight, sidewalkMaterial, sidewalkTexture) {
     const halfRoadWidth = roadWidth / 2;
-    const cornerOffset = halfRoadWidth + sidewalkWidth / 2 + 0.5; // 0.5 is the gap
-    const cornerSize = sidewalkWidth * 2;
+    const safeOffset = 1.0; // Increased gap between road and corner sidewalk
+    const cornerOffset = halfRoadWidth + sidewalkWidth / 2 + safeOffset;
+    const cornerSize = sidewalkWidth * 1.5; // Reduced from 2x to 1.5x to prevent overlapping
     const sidewalkY = sidewalkHeight / 2;
     
     // Create four corner sidewalks
@@ -413,25 +414,40 @@ export class BaseMap {
       
       // Set texture repeat based on size
       if (sidewalkTexture) {
-        sidewalkTexture.repeat.set(cornerSize / 10, cornerSize / 10);
-        sidewalkTexture.needsUpdate = true;
+        const textureCopy = sidewalkTexture.clone(); // Create a separate texture instance for each corner
+        textureCopy.repeat.set(cornerSize / 10, cornerSize / 10);
+        textureCopy.needsUpdate = true;
+        
+        // Create a new material instance with the copied texture
+        const cornerMaterial = new THREE.MeshStandardMaterial({
+          map: textureCopy,
+          roughness: 0.8,
+          metalness: 0.0,
+          color: 0xCCCCCC
+        });
+        
+        const cornerMesh = new THREE.Mesh(cornerGeometry, cornerMaterial);
+        cornerMesh.position.set(cornerX, sidewalkY, cornerZ);
+        cornerMesh.receiveShadow = true;
+        this.scene.add(cornerMesh);
+      } else {
+        // Fallback if texture isn't available
+        const cornerMesh = new THREE.Mesh(cornerGeometry, sidewalkMaterial);
+        cornerMesh.position.set(cornerX, sidewalkY, cornerZ);
+        cornerMesh.receiveShadow = true;
+        this.scene.add(cornerMesh);
       }
-      
-      const cornerMesh = new THREE.Mesh(cornerGeometry, sidewalkMaterial);
-      cornerMesh.position.set(cornerX, sidewalkY, cornerZ);
-      cornerMesh.receiveShadow = true;
-      this.scene.add(cornerMesh);
       
       // Create inner curb (rounded corner)
       const curbHeight = 0.15;
       const curbSegments = 8; // Number of segments in the curved part
       const curbThickness = 0.25;
-      const curbInnerRadius = sidewalkWidth / 2;
+      const curbInnerRadius = halfRoadWidth - 0.2; // Align with the road edge
       
       // Create a custom curb geometry for the rounded inner corner
       const curbPoints = [];
-      const innerCornerX = cornerX - xFactor * sidewalkWidth / 2;
-      const innerCornerZ = cornerZ - zFactor * sidewalkWidth / 2;
+      const innerCornerX = x + xFactor * halfRoadWidth;
+      const innerCornerZ = z + zFactor * halfRoadWidth;
       
       // Calculate curb points for a rounded corner
       for (let i = 0; i <= curbSegments; i++) {
@@ -446,7 +462,8 @@ export class BaseMap {
         const pointX = innerCornerX + xFactor * Math.cos(startAngle + angle) * curbInnerRadius;
         const pointZ = innerCornerZ + zFactor * Math.sin(startAngle + angle) * curbInnerRadius;
         
-        curbPoints.push(new THREE.Vector3(pointX - cornerX, 0, pointZ - cornerZ));
+        // Position relative to intersection center, not corner position
+        curbPoints.push(new THREE.Vector3(pointX - x, 0, pointZ - z));
       }
       
       // Create a shape from the points
@@ -494,7 +511,7 @@ export class BaseMap {
       
       const curb = new THREE.Mesh(curbGeometry, curbMaterial);
       curb.rotation.x = -Math.PI / 2; // Rotate to horizontal
-      curb.position.set(cornerX, curbHeight, cornerZ);
+      curb.position.set(x, curbHeight, z);
       curb.receiveShadow = true;
       curb.castShadow = true;
       this.scene.add(curb);
@@ -524,13 +541,13 @@ export class BaseMap {
     const stripeWidth = 1;
     const stripeLength = roadWidth * 0.8; // Cross most of the road
     const stripeSpacing = 1;
-    const stripeCount = 8;
+    const stripeCount = 6; // Reduced from 8 to fit better
     const totalWidth = stripeCount * (stripeWidth + stripeSpacing) - stripeSpacing;
     
     // Create two crosswalks at each end of the road
     for (let end = 0; end < 2; end++) {
       const endFactor = end === 0 ? -1 : 1;
-      const endOffset = endFactor * (length/2 - totalWidth/2 - 5); // Position 5 units from the end of the road
+      const endOffset = endFactor * (length/2 - totalWidth/2 - 8); // Position further from the intersection (8 units)
       
       // Create white stripes
       for (let i = 0; i < stripeCount; i++) {
