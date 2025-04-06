@@ -40,18 +40,18 @@
 /* Position the buttons */
 /* Left side controls - Acceleration and braking */
 .control-up {
-  bottom: 140px;
-  left: 20px;
+  bottom: 160px;
+  left: 30px;
 }
 
 .control-down {
-  bottom: 20px;
-  left: 20px;
+  bottom: 30px;
+  left: 30px;
 }
 
 .control-brake {
-  bottom: 80px;
-  left: 20px;
+  bottom: 95px;
+  left: 30px;
   background-color: rgba(255, 0, 0, 0.3);
   border-color: rgba(255, 0, 0, 0.5);
 }
@@ -62,11 +62,11 @@
 
 /* Right side controls - Turning */
 .control-left {
-  bottom: 20px;
-  right: 140px;
+  bottom: 30px;
+  right: 160px;
 }
 
 .control-right {
-  bottom: 20px;
-  right: 20px;
+  bottom: 30px;
+  right: 30px;
 } 
