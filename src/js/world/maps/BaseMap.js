@@ -252,12 +252,12 @@ export class BaseMap {
     park.receiveShadow = true;
     this.scene.add(park);
     
-    // Add trees with billboard/sprite approach
+    // Add trees using textured 3D models instead of billboards
     this.addTexturedTrees(x, z, width, height);
   }
   
   /**
-   * Add trees using textured billboards instead of geometries
+   * Add trees using textured 3D models instead of billboards
    */
   addTexturedTrees(x, z, width, height) {
     const treeSpacing = 15;
@@ -271,14 +271,14 @@ export class BaseMap {
     const gridX = Math.floor(availableWidth / treeSpacing);
     const gridZ = Math.floor(availableHeight / treeSpacing);
     
-    // Get tree textures
+    // Get tree textures from texture factory
     const textureFactory = this.getTextureFactory();
     
     // Place trees on a grid with some randomness
     for (let i = 0; i < gridX; i++) {
       for (let j = 0; j < gridZ; j++) {
-        // 60% chance to skip a tree for variety and performance
-        if (Math.random() < 0.6) continue;
+        // 40% chance to skip a tree for variety
+        if (Math.random() < 0.4) continue;
         
         const baseX = x - width/2 + parkInnerMargin + i * treeSpacing + treeSpacing/2;
         const baseZ = z - height/2 + parkInnerMargin + j * treeSpacing + treeSpacing/2;
@@ -287,7 +287,7 @@ export class BaseMap {
         const offsetX = (Math.random() - 0.5) * (treeSpacing * 0.5);
         const offsetZ = (Math.random() - 0.5) * (treeSpacing * 0.5);
         
-        this.createTreeBillboard(baseX + offsetX, baseZ + offsetZ);
+        this.createTexturedTree(baseX + offsetX, baseZ + offsetZ);
       }
     }
     
@@ -296,76 +296,268 @@ export class BaseMap {
   }
   
   /**
-   * Create a tree using a billboard/sprite approach
+   * Create a 3D tree with textures for enhanced realism
    */
-  createTreeBillboard(x, z) {
+  createTexturedTree(x, z) {
     const textureFactory = this.getTextureFactory();
     
     // Randomly select tree type (pine, oak, birch, tropical)
     const treeTypes = ['pine', 'oak', 'birch', 'tropical'];
     const treeType = treeTypes[Math.floor(Math.random() * treeTypes.length)];
     
-    const treeTexture = textureFactory.getEnvironmentTexture('tree', treeType);
+    // Get appropriate tree textures
+    const barkTexture = textureFactory.getEnvironmentTexture('tree', `${treeType}_bark`);
+    const foliageTexture = textureFactory.getEnvironmentTexture('tree', treeType);
     
-    if (!treeTexture) {
-      console.warn('No tree texture found for type:', treeType);
-      return;
-    }
-    
-    // Billboard size based on tree type
-    let treeHeight, treeWidth;
+    // Random tree sizing based on type
+    let trunkHeight, trunkRadius, foliageSize;
     
     switch (treeType) {
       case 'pine':
-        treeHeight = 10 + Math.random() * 5;
-        treeWidth = 6 + Math.random() * 2;
+        trunkHeight = 4 + Math.random() * 2;
+        trunkRadius = 0.4 + Math.random() * 0.3;
+        foliageSize = 3 + Math.random() * 2;
         break;
       case 'oak':
-        treeHeight = 8 + Math.random() * 4;
-        treeWidth = 7 + Math.random() * 3;
+        trunkHeight = 3 + Math.random() * 2;
+        trunkRadius = 0.5 + Math.random() * 0.4;
+        foliageSize = 4 + Math.random() * 2;
         break;
       case 'birch':
-        treeHeight = 9 + Math.random() * 4;
-        treeWidth = 5 + Math.random() * 2;
+        trunkHeight = 5 + Math.random() * 2;
+        trunkRadius = 0.3 + Math.random() * 0.2;
+        foliageSize = 3 + Math.random() * 1.5;
         break;
       case 'tropical':
-        treeHeight = 7 + Math.random() * 3;
-        treeWidth = 8 + Math.random() * 2;
+        trunkHeight = 6 + Math.random() * 3;
+        trunkRadius = 0.4 + Math.random() * 0.2;
+        foliageSize = 3 + Math.random() * 1.5;
         break;
       default:
-        treeHeight = 8;
-        treeWidth = 6;
+        trunkHeight = 4;
+        trunkRadius = 0.5;
+        foliageSize = 3;
     }
     
-    // Create a plane for the billboard
-    const billboardGeometry = new THREE.PlaneGeometry(treeWidth, treeHeight);
-    const billboardMaterial = new THREE.MeshBasicMaterial({
-      map: treeTexture,
-      transparent: true,
-      alphaTest: 0.5,
-      side: THREE.DoubleSide
+    // Create trunk with appropriate material
+    const trunkMaterial = new THREE.MeshStandardMaterial({
+      color: this.getTrunkColor(treeType),
+      roughness: 0.9,
+      metalness: 0.0,
+      map: barkTexture
     });
     
-    const billboard = new THREE.Mesh(billboardGeometry, billboardMaterial);
-    billboard.position.set(x, treeHeight / 2, z);
+    // Create a slightly irregular trunk by using more segments
+    const trunkGeometry = new THREE.CylinderGeometry(
+      trunkRadius * 0.8, // Top radius slightly smaller
+      trunkRadius, // Bottom radius
+      trunkHeight,
+      8, // Segments around
+      4, // Height segments
+      true // Open-ended
+    );
     
-    // Add to scene
-    this.scene.add(billboard);
+    // Apply slight random variations to trunk vertices for less perfect shape
+    const trunkVertices = trunkGeometry.attributes.position;
+    for (let i = 0; i < trunkVertices.count; i++) {
+      const x = trunkVertices.getX(i);
+      const y = trunkVertices.getY(i);
+      const z = trunkVertices.getZ(i);
+      
+      // Only adjust radius, not height
+      if (y !== 0 && y !== trunkHeight) {
+        const angle = Math.atan2(z, x);
+        const radius = Math.sqrt(x * x + z * z);
+        const newRadius = radius * (1 + (Math.random() - 0.5) * 0.1);
+        
+        trunkVertices.setX(i, Math.cos(angle) * newRadius);
+        trunkVertices.setZ(i, Math.sin(angle) * newRadius);
+      }
+    }
+    trunkGeometry.attributes.position.needsUpdate = true;
     
-    // Physics body (just a simple cylinder for collision)
-    const radius = 0.5;
-    const physicsHeight = 2;
+    const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+    trunk.position.set(x, trunkHeight / 2, z);
+    trunk.castShadow = true;
+    this.scene.add(trunk);
     
-    const body = new CANNON.Body({
+    // Create foliage based on tree type
+    const foliageMaterial = new THREE.MeshStandardMaterial({
+      color: this.getFoliageColor(treeType),
+      roughness: 0.8,
+      metalness: 0.0,
+      map: foliageTexture,
+      alphaTest: 0.8
+    });
+    
+    let foliage;
+    
+    switch (treeType) {
+      case 'pine':
+        // Create multiple cone layers for pine trees
+        foliage = new THREE.Group();
+        
+        const layers = 3 + Math.floor(Math.random() * 2);
+        let layerSize = foliageSize;
+        let layerHeight = 2.5;
+        
+        for (let i = 0; i < layers; i++) {
+          const coneGeometry = new THREE.ConeGeometry(
+            layerSize, layerHeight, 8, 1, true
+          );
+          
+          const cone = new THREE.Mesh(coneGeometry, foliageMaterial);
+          cone.position.y = trunkHeight / 2 + i * layerHeight * 0.7;
+          foliage.add(cone);
+          
+          // Each layer gets smaller
+          layerSize *= 0.8;
+        }
+        
+        foliage.position.set(x, 0, z);
+        break;
+        
+      case 'oak':
+        // Create an irregular sphere for oak trees
+        const sphereGeometry = new THREE.SphereGeometry(
+          foliageSize, 8, 6
+        );
+        
+        // Make sphere less perfect
+        const sphereVertices = sphereGeometry.attributes.position;
+        for (let i = 0; i < sphereVertices.count; i++) {
+          const x = sphereVertices.getX(i);
+          const y = sphereVertices.getY(i);
+          const z = sphereVertices.getZ(i);
+          
+          const length = Math.sqrt(x * x + y * y + z * z);
+          const randomOffset = (Math.random() - 0.5) * 0.3;
+          
+          sphereVertices.setX(i, x * (1 + randomOffset));
+          sphereVertices.setY(i, y * (1 + randomOffset));
+          sphereVertices.setZ(i, z * (1 + randomOffset));
+        }
+        sphereGeometry.attributes.position.needsUpdate = true;
+        
+        foliage = new THREE.Mesh(sphereGeometry, foliageMaterial);
+        foliage.position.set(x, trunkHeight + foliageSize * 0.7, z);
+        break;
+        
+      case 'birch':
+        // Create an elongated ellipsoid for birch trees
+        const ellipsoidGeometry = new THREE.SphereGeometry(
+          foliageSize, 8, 6
+        );
+        
+        // Stretch vertically
+        const ellipsoidVertices = ellipsoidGeometry.attributes.position;
+        for (let i = 0; i < ellipsoidVertices.count; i++) {
+          ellipsoidVertices.setY(i, ellipsoidVertices.getY(i) * 1.5);
+        }
+        ellipsoidGeometry.attributes.position.needsUpdate = true;
+        
+        foliage = new THREE.Mesh(ellipsoidGeometry, foliageMaterial);
+        foliage.position.set(x, trunkHeight + foliageSize * 0.9, z);
+        break;
+        
+      case 'tropical':
+        // Create palm fronds using a fan of planes
+        foliage = new THREE.Group();
+        
+        const frondCount = 6 + Math.floor(Math.random() * 3);
+        const frondLength = foliageSize * 1.5;
+        const frondWidth = foliageSize * 0.5;
+        
+        for (let i = 0; i < frondCount; i++) {
+          const angle = (i / frondCount) * Math.PI * 2;
+          const frondGeometry = new THREE.PlaneGeometry(frondWidth, frondLength);
+          
+          // Bend the frond by adjusting vertices
+          const frondVertices = frondGeometry.attributes.position;
+          for (let j = 0; j < frondVertices.count; j++) {
+            const y = frondVertices.getY(j);
+            if (y > 0) {
+              // Apply a curve
+              const bendFactor = (y / frondLength) * 0.3;
+              frondVertices.setY(j, y * (1 - bendFactor));
+            }
+          }
+          frondGeometry.attributes.position.needsUpdate = true;
+          
+          const frond = new THREE.Mesh(frondGeometry, foliageMaterial);
+          frond.rotation.x = -Math.PI / 2 + Math.PI / 4;
+          frond.rotation.z = angle;
+          frond.position.y = trunkHeight;
+          foliage.add(frond);
+        }
+        
+        foliage.position.set(x, 0, z);
+        break;
+        
+      default:
+        // Simple sphere for other tree types
+        foliage = new THREE.Mesh(
+          new THREE.SphereGeometry(foliageSize, 8, 6),
+          foliageMaterial
+        );
+        foliage.position.set(x, trunkHeight + foliageSize * 0.7, z);
+    }
+    
+    this.scene.add(foliage);
+    
+    // Physics body - simple cylinder for collision
+    const physicsBody = new CANNON.Body({
       mass: 0,
-      position: new CANNON.Vec3(x, physicsHeight / 2, z)
+      position: new CANNON.Vec3(x, trunkHeight / 2, z)
     });
     
-    const shape = new CANNON.Cylinder(radius, radius, physicsHeight, 8);
-    body.addShape(shape);
-    this.physicsWorld.addBody(body);
+    const physicsShape = new CANNON.Cylinder(
+      trunkRadius,
+      trunkRadius,
+      trunkHeight,
+      8
+    );
     
-    return billboard;
+    physicsBody.addShape(physicsShape);
+    this.physicsWorld.addBody(physicsBody);
+    
+    return { trunk, foliage };
+  }
+  
+  /**
+   * Helper function to get appropriate trunk color based on tree type
+   */
+  getTrunkColor(treeType) {
+    switch (treeType) {
+      case 'pine':
+        return 0x5D4037; // Dark brown
+      case 'oak':
+        return 0x8D6E63; // Medium brown
+      case 'birch':
+        return 0xE0E0E0; // Light whitish color
+      case 'tropical':
+        return 0x8D6E63; // Medium brown
+      default:
+        return 0x795548; // Default brown
+    }
+  }
+  
+  /**
+   * Helper function to get appropriate foliage color based on tree type
+   */
+  getFoliageColor(treeType) {
+    switch (treeType) {
+      case 'pine':
+        return 0x2E7D32; // Dark green
+      case 'oak':
+        return 0x388E3C; // Medium green
+      case 'birch':
+        return 0x81C784; // Light green
+      case 'tropical':
+        return 0x4CAF50; // Medium green
+      default:
+        return 0x43A047; // Default green
+    }
   }
   
   /**

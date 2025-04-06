@@ -696,6 +696,9 @@ export class TextureFactory {
       texture.wrapT = THREE.ClampToEdgeWrapping;
       
       this.textureCache.set(textureKey, texture);
+      
+      // Also create matching bark textures for each tree type
+      this.createBarkTexture(variant, resolution);
     }
   }
 
@@ -936,6 +939,244 @@ export class TextureFactory {
           leafY + Math.sin(rightAngle) * leafLength
         );
         ctx.stroke();
+      }
+    }
+  }
+
+  /**
+   * Create bark textures for tree trunks
+   * @param {string} treeType - Type of tree bark to create
+   * @param {number} resolution - Texture resolution
+   */
+  createBarkTexture(treeType, resolution) {
+    const textureKey = `tree_${treeType}_bark`;
+    const canvas = document.createElement('canvas');
+    canvas.width = resolution;
+    canvas.height = resolution;
+    const ctx = canvas.getContext('2d');
+    
+    // Base bark color
+    let baseColor, detailColor1, detailColor2;
+    
+    switch (treeType) {
+      case 'pine':
+        baseColor = '#5D4037';
+        detailColor1 = '#4E342E';
+        detailColor2 = '#6D4C41';
+        break;
+      case 'oak':
+        baseColor = '#795548';
+        detailColor1 = '#6D4C41';
+        detailColor2 = '#8D6E63';
+        break;
+      case 'birch':
+        baseColor = '#E0E0E0';
+        detailColor1 = '#BDBDBD';
+        detailColor2 = '#F5F5F5';
+        break;
+      case 'tropical':
+        baseColor = '#8D6E63';
+        detailColor1 = '#795548';
+        detailColor2 = '#A1887F';
+        break;
+      default:
+        baseColor = '#795548';
+        detailColor1 = '#6D4C41';
+        detailColor2 = '#8D6E63';
+    }
+    
+    // Fill with base color
+    ctx.fillStyle = baseColor;
+    ctx.fillRect(0, 0, resolution, resolution);
+    
+    // Add bark patterns based on tree type
+    switch (treeType) {
+      case 'pine':
+        // Pine bark has vertical cracks and rough texture
+        this.addVerticalBarkPattern(ctx, resolution, detailColor1, detailColor2, 8, 60);
+        break;
+        
+      case 'oak':
+        // Oak bark has deep furrows and is chunky
+        this.addRoughBarkPattern(ctx, resolution, detailColor1, detailColor2, 12, 40);
+        break;
+        
+      case 'birch':
+        // Birch bark has horizontal paper-like strips
+        this.addBirchBarkPattern(ctx, resolution, detailColor1, detailColor2, 15, 5);
+        break;
+        
+      case 'tropical':
+        // Palm bark has diagonal pattern
+        this.addDiagonalBarkPattern(ctx, resolution, detailColor1, detailColor2, 10, 30);
+        break;
+        
+      default:
+        // Generic bark texture
+        this.addRoughBarkPattern(ctx, resolution, detailColor1, detailColor2, 10, 30);
+    }
+    
+    // Create texture from canvas
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    
+    this.textureCache.set(textureKey, texture);
+  }
+
+  /**
+   * Add vertical crack patterns typical of pine bark
+   */
+  addVerticalBarkPattern(ctx, resolution, darkColor, lightColor, crackWidth, crackLength) {
+    // Add vertical cracks
+    for (let x = 0; x < resolution; x += resolution / 8) {
+      const offsetX = x + (Math.random() - 0.5) * resolution / 16;
+      
+      for (let y = 0; y < resolution; y += crackLength / 2) {
+        if (Math.random() < 0.7) {
+          const actualLength = crackLength * (0.5 + Math.random() * 0.5);
+          const actualWidth = crackWidth * (0.5 + Math.random() * 0.5);
+          
+          // Crack color varies between light and dark
+          ctx.fillStyle = Math.random() < 0.7 ? darkColor : lightColor;
+          
+          // Draw a vertical crack
+          ctx.beginPath();
+          ctx.moveTo(offsetX, y);
+          ctx.lineTo(offsetX + (Math.random() - 0.5) * 10, y + actualLength);
+          ctx.lineTo(offsetX + (Math.random() - 0.5) * 10 + actualWidth, y + actualLength);
+          ctx.lineTo(offsetX + actualWidth, y);
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+    }
+    
+    // Add small noise texture
+    this.addBarkNoise(ctx, resolution, darkColor, lightColor, 0.1);
+  }
+
+  /**
+   * Add rough patterns typical of oak bark
+   */
+  addRoughBarkPattern(ctx, resolution, darkColor, lightColor, patternSize, depth) {
+    // Add blocky pattern
+    for (let y = 0; y < resolution; y += patternSize) {
+      for (let x = 0; x < resolution; x += patternSize) {
+        const offsetX = (Math.random() - 0.5) * patternSize * 0.5;
+        const offsetY = (Math.random() - 0.5) * patternSize * 0.5;
+        
+        const patternWidth = patternSize * (0.5 + Math.random() * 0.5);
+        const patternHeight = patternSize * (0.5 + Math.random() * 0.5);
+        
+        // Furrow color
+        ctx.fillStyle = Math.random() < 0.7 ? darkColor : lightColor;
+        
+        // Draw a furrow block
+        ctx.fillRect(
+          x + offsetX, 
+          y + offsetY, 
+          patternWidth, 
+          patternHeight
+        );
+      }
+    }
+    
+    // Add crack lines
+    ctx.strokeStyle = darkColor;
+    ctx.lineWidth = 1;
+    
+    for (let i = 0; i < depth; i++) {
+      const x1 = Math.random() * resolution;
+      const y1 = Math.random() * resolution;
+      const x2 = x1 + (Math.random() - 0.5) * patternSize * 3;
+      const y2 = y1 + (Math.random() - 0.5) * patternSize * 3;
+      
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
+    
+    // Add small noise texture
+    this.addBarkNoise(ctx, resolution, darkColor, lightColor, 0.2);
+  }
+
+  /**
+   * Add horizontal strip patterns typical of birch bark
+   */
+  addBirchBarkPattern(ctx, resolution, darkColor, lightColor, stripHeight, stripGap) {
+    // Add horizontal strips
+    for (let y = 0; y < resolution; y += stripHeight + stripGap) {
+      const actualHeight = stripHeight * (0.8 + Math.random() * 0.4);
+      
+      // Draw a horizontal strip
+      ctx.fillStyle = lightColor;
+      ctx.fillRect(0, y, resolution, actualHeight);
+      
+      // Add small horizontal dark marks characteristic of birch
+      ctx.fillStyle = darkColor;
+      
+      const markCount = 5 + Math.floor(Math.random() * 8);
+      for (let i = 0; i < markCount; i++) {
+        const markX = Math.random() * resolution;
+        const markY = y + Math.random() * actualHeight;
+        const markWidth = 5 + Math.random() * 15;
+        const markHeight = 2 + Math.random() * 4;
+        
+        ctx.fillRect(markX, markY, markWidth, markHeight);
+      }
+    }
+    
+    // Add small noise texture
+    this.addBarkNoise(ctx, resolution, darkColor, lightColor, 0.05);
+  }
+
+  /**
+   * Add diagonal pattern typical of palm tree bark
+   */
+  addDiagonalBarkPattern(ctx, resolution, darkColor, lightColor, patternSize, count) {
+    // Base diagonal pattern
+    for (let i = 0; i < count; i++) {
+      const startX = Math.random() * resolution;
+      const startY = Math.random() * resolution;
+      const width = resolution * 0.2 + Math.random() * resolution * 0.3;
+      const height = 5 + Math.random() * 10;
+      
+      // Diagonal angle
+      const angle = Math.PI / 4 + (Math.random() - 0.5) * Math.PI / 8;
+      
+      // Create a diagonal rectangle
+      ctx.save();
+      ctx.translate(startX, startY);
+      ctx.rotate(angle);
+      ctx.fillStyle = Math.random() < 0.6 ? darkColor : lightColor;
+      ctx.fillRect(0, 0, width, height);
+      ctx.restore();
+    }
+    
+    // Add horizontal rings
+    for (let y = patternSize; y < resolution; y += patternSize * 2) {
+      ctx.fillStyle = darkColor;
+      ctx.fillRect(0, y - 1, resolution, 2);
+    }
+    
+    // Add small noise texture
+    this.addBarkNoise(ctx, resolution, darkColor, lightColor, 0.15);
+  }
+
+  /**
+   * Add noise to bark texture for more realism
+   */
+  addBarkNoise(ctx, resolution, darkColor, lightColor, intensity) {
+    // Add small noise pixels
+    const pixelSize = 2;
+    for (let y = 0; y < resolution; y += pixelSize) {
+      for (let x = 0; x < resolution; x += pixelSize) {
+        if (Math.random() < intensity) {
+          ctx.fillStyle = Math.random() < 0.5 ? darkColor : lightColor;
+          ctx.fillRect(x, y, pixelSize, pixelSize);
+        }
       }
     }
   }
