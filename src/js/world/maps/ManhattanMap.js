@@ -422,53 +422,48 @@ export class ManhattanMap extends BaseMap {
     const blockSize = this.blockSize;
     const roadWidth = this.roadWidth;
     const sidewalkWidth = this.sidewalkWidth;
-    // Increase lamp spacing to reduce total number
-    const lampSpacing = 160; // Even larger spacing between lamps
-    
-    // Place lamps along horizontal streets - on the sidewalks
-    for (let z = 0; z <= this.gridHeight; z += 2) { // Only every other street
-      const streetZ = (z - this.gridHeight / 2) * (blockSize + roadWidth);
-      for (let x = -this.gridWidth * (blockSize + roadWidth) / 2; x <= this.gridWidth * (blockSize + roadWidth) / 2; x += lampSpacing) {
-        // Skip placing lamps in Central Park area
-        const gridX = Math.floor((x + this.gridWidth * (blockSize + roadWidth) / 2) / (blockSize + roadWidth));
-        const gridZ = z;
-        
-        const isInParkX = (
-          gridX >= this.centralParkX && 
-          gridX < this.centralParkX + this.centralParkWidth
-        );
-        const isInParkZ = (
-          gridZ >= this.centralParkY && 
-          gridZ < this.centralParkY + this.centralParkHeight
-        );
-        
-        if (!(isInParkX && isInParkZ)) {
-          // Place lamp on the north sidewalk
-          this.createStreetLamp(x, streetZ - (roadWidth/2 + sidewalkWidth/2));
-        }
+    const step = blockSize + roadWidth;
+    const halfRoadWidth = roadWidth / 2;
+    const halfSidewalkWidth = sidewalkWidth / 2;
+    const sidewalkOffset = halfRoadWidth + halfSidewalkWidth; // Distance from road center to sidewalk center
+
+    const lampSpacing = 80; // Reduced spacing a bit for more lamps
+
+    // Calculate grid boundaries for iteration
+    const minX = (-this.gridWidth / 2) * step;
+    const maxX = (this.gridWidth / 2) * step;
+    const minZ = (-this.gridHeight / 2) * step;
+    const maxZ = (this.gridHeight / 2) * step;
+
+    // Place lamps along horizontal streets (East-West)
+    // Iterate through street centerlines
+    for (let j = 0; j <= this.gridHeight; j++) {
+      const streetZ = minZ + j * step - halfRoadWidth;
+      // Iterate along the street
+      for (let streetX = minX - halfRoadWidth; streetX <= maxX + halfRoadWidth; streetX += lampSpacing) {
+        // Place on both North and South sidewalks
+        const lampZ_North = streetZ - sidewalkOffset;
+        const lampZ_South = streetZ + sidewalkOffset;
+        // TODO: Add check to avoid placing lamps within Central Park bounds
+        this.createStreetLamp(streetX, lampZ_North);
+        this.createStreetLamp(streetX, lampZ_South);
       }
     }
-    
-    // Place lamps along vertical streets - on the sidewalks
-    for (let x = 0; x <= this.gridWidth; x += 2) { // Only every other street
-      const streetX = (x - this.gridWidth / 2) * (blockSize + roadWidth);
-      for (let z = -this.gridHeight * (blockSize + roadWidth) / 2; z <= this.gridHeight * (blockSize + roadWidth) / 2; z += lampSpacing) {
-        // Skip placing lamps in Central Park area
-        const gridX = x;
-        const gridZ = Math.floor((z + this.gridHeight * (blockSize + roadWidth) / 2) / (blockSize + roadWidth));
-        
-        const isInParkX = (
-          gridX >= this.centralParkX && 
-          gridX < this.centralParkX + this.centralParkWidth
-        );
-        const isInParkZ = (
-          gridZ >= this.centralParkY && 
-          gridZ < this.centralParkY + this.centralParkHeight
-        );
-        
-        if (!(isInParkX && isInParkZ)) {
-          // Place lamp on the west sidewalk
-          this.createStreetLamp(streetX - (roadWidth/2 + sidewalkWidth/2), z);
+
+    // Place lamps along vertical avenues (North-South)
+    // Iterate through avenue centerlines
+    for (let i = 0; i <= this.gridWidth; i++) {
+      const avenueX = minX + i * step - halfRoadWidth;
+      // Iterate along the avenue
+      for (let avenueZ = minZ - halfRoadWidth; avenueZ <= maxZ + halfRoadWidth; avenueZ += lampSpacing) {
+        // Place on both West and East sidewalks
+        const lampX_West = avenueX - sidewalkOffset;
+        const lampX_East = avenueX + sidewalkOffset;
+        // TODO: Add check to avoid placing lamps within Central Park bounds
+        // Avoid placing on the same spot as horizontal lamps (roughly)
+        if (Math.abs(avenueZ % lampSpacing) > sidewalkWidth * 2) { // Simple check to reduce overlap
+          this.createStreetLamp(lampX_West, avenueZ);
+          this.createStreetLamp(lampX_East, avenueZ);
         }
       }
     }
