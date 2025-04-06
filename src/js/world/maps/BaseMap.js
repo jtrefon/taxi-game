@@ -138,10 +138,10 @@ export class BaseMap {
     const roadWidth = width;
     const sidewalkWidth = this.sidewalkWidth;
     const sidewalkHeight = 0.25; // Slight elevation for sidewalks
-    const laneWidth = 3.5; // Standard lane width
+    const laneWidth = 7; // Wider lanes (doubled from 3.5) to accommodate the car size
     
-    // Calculate number of lanes in each direction (minimum 2, maximum based on width)
-    const lanesPerDirection = Math.max(2, Math.floor((roadWidth - 2) / (2 * laneWidth))); 
+    // Calculate number of lanes in each direction (minimum 1, maximum based on width)
+    const lanesPerDirection = Math.max(1, Math.floor((roadWidth - 2) / (2 * laneWidth))); 
     const totalLanes = lanesPerDirection * 2;
     const actualLaneWidth = (roadWidth - 2) / totalLanes; // Adjust lane width to fit the road
     const centerLineWidth = 2; // Width of center divider
@@ -184,16 +184,24 @@ export class BaseMap {
     // 2. Create lane markings
     this.addLaneMarkings(x, z, length, roadWidth, lanesPerDirection, actualLaneWidth, centerLineWidth, isHorizontal);
     
-    // 3. Add elevated sidewalks with textures
+    // 3. Add elevated sidewalks with textures - fixed to not overlap with the road
     this.addElevatedSidewalks(x, z, length, roadWidth, sidewalkWidth, sidewalkHeight, isHorizontal);
+    
+    // 4. Add pedestrian crossing if at an intersection (assuming all roads are at right angles)
+    // A simple check to identify intersections - if both width and length are similar in size
+    const isIntersection = Math.abs(length - width) < 5;
+    if (isIntersection) {
+      this.addPedestrianCrossing(x, z, roadWidth, length, isHorizontal);
+      this.addTrafficLight(x, z, roadWidth, length, isHorizontal);
+    }
   }
   
   /**
    * Add lane markings to the road
    */
   addLaneMarkings(x, z, length, roadWidth, lanesPerDirection, laneWidth, centerLineWidth, isHorizontal) {
-    const dashLength = 2; // Length of dashed line segments
-    const dashGap = 2; // Gap between dashed line segments
+    const dashLength = 4; // Longer dashed line segments
+    const dashGap = 4; // Gap between dashed line segments
     const halfRoadWidth = roadWidth / 2;
     
     // Create center divider (solid double yellow line)
@@ -224,8 +232,8 @@ export class BaseMap {
           const dashPosition = -length/2 + i * (dashLength + dashGap) + dashLength/2;
           
           const dashGeometry = new THREE.PlaneGeometry(
-            isHorizontal ? dashLength : 0.1,
-            isHorizontal ? 0.1 : dashLength
+            isHorizontal ? dashLength : 0.3,
+            isHorizontal ? 0.3 : dashLength
           );
           
           const dashMaterial = new THREE.MeshBasicMaterial({ color: 0xFFFFFF }); // White dashed lines
@@ -245,11 +253,11 @@ export class BaseMap {
       }
       
       // Add solid outer line (white)
-      const outerLineOffset = directionFactor * (halfRoadWidth - 0.1);
+      const outerLineOffset = directionFactor * (halfRoadWidth - 0.2);
       
       const outerLineGeometry = new THREE.PlaneGeometry(
-        isHorizontal ? length : 0.2,
-        isHorizontal ? 0.2 : length
+        isHorizontal ? length : 0.4,
+        isHorizontal ? 0.4 : length
       );
       
       const outerLineMaterial = new THREE.MeshBasicMaterial({ color: 0xFFFFFF });
@@ -275,6 +283,7 @@ export class BaseMap {
     const halfRoadWidth = roadWidth / 2;
     const halfSidewalkWidth = sidewalkWidth / 2;
     const sidewalkY = sidewalkHeight / 2; // Position at half height for the geometry
+    const safeOffset = 0.5; // Small gap between sidewalk and road edge
     
     // Get texture factory and sidewalk texture
     const textureFactory = this.getTextureFactory();
@@ -290,7 +299,8 @@ export class BaseMap {
     // Create sidewalk geometries with height
     for (let side = 0; side < 2; side++) {
       const sideFactor = side === 0 ? -1 : 1;
-      const sideOffset = sideFactor * (halfRoadWidth + halfSidewalkWidth);
+      // Place sidewalk beyond the road edge with a small gap
+      const sideOffset = sideFactor * (halfRoadWidth + halfSidewalkWidth + safeOffset);
       
       // Main sidewalk surface
       const sidewalkGeometry = new THREE.BoxGeometry(
@@ -348,7 +358,7 @@ export class BaseMap {
       curb.castShadow = true;
       this.scene.add(curb);
       
-      // Add physics body for the sidewalk and curb to prevent vehicles driving on them
+      // Add physics body for the sidewalk only (not the road area)
       const sidewalkShape = new CANNON.Box(new CANNON.Vec3(
         isHorizontal ? length/2 : sidewalkWidth/2,
         sidewalkHeight/2,
@@ -368,6 +378,124 @@ export class BaseMap {
       
       sidewalkBody.addShape(sidewalkShape);
       this.physicsWorld.addBody(sidewalkBody);
+    }
+  }
+  
+  /**
+   * Add a pedestrian crossing to the road
+   */
+  addPedestrianCrossing(x, z, roadWidth, length, isHorizontal) {
+    const stripeWidth = 1;
+    const stripeLength = roadWidth * 0.8; // Cross most of the road
+    const stripeSpacing = 1;
+    const stripeCount = 8;
+    const totalWidth = stripeCount * (stripeWidth + stripeSpacing) - stripeSpacing;
+    
+    // Create white stripes
+    for (let i = 0; i < stripeCount; i++) {
+      const stripePosition = -totalWidth/2 + i * (stripeWidth + stripeSpacing) + stripeWidth/2;
+      
+      const stripeGeometry = new THREE.PlaneGeometry(
+        isHorizontal ? stripeWidth : stripeLength,
+        isHorizontal ? stripeLength : stripeWidth
+      );
+      
+      const stripeMaterial = new THREE.MeshBasicMaterial({ color: 0xFFFFFF });
+      
+      const stripe = new THREE.Mesh(stripeGeometry, stripeMaterial);
+      stripe.rotation.x = -Math.PI / 2;
+      
+      // Position the stripe at both ends of the road
+      if (isHorizontal) {
+        stripe.position.set(x + stripePosition, 0.07, z);
+      } else {
+        stripe.position.set(x, 0.07, z + stripePosition);
+      }
+      
+      this.scene.add(stripe);
+    }
+  }
+  
+  /**
+   * Add traffic lights at intersections
+   */
+  addTrafficLight(x, z, roadWidth, length, isHorizontal) {
+    const poleHeight = 6;
+    const poleRadius = 0.15;
+    const lightBoxWidth = 1.2;
+    const lightBoxHeight = 3;
+    const lightBoxDepth = 0.8;
+    const halfRoadWidth = roadWidth / 2;
+    
+    // Create traffic lights at all four corners of the intersection
+    for (let corner = 0; corner < 4; corner++) {
+      // Determine position for each corner
+      const xFactor = (corner === 0 || corner === 3) ? -1 : 1;
+      const zFactor = (corner === 0 || corner === 1) ? -1 : 1;
+      
+      const cornerX = x + xFactor * (halfRoadWidth + 1.5);
+      const cornerZ = z + zFactor * (halfRoadWidth + 1.5);
+      
+      // Create the pole
+      const poleGeometry = new THREE.CylinderGeometry(poleRadius, poleRadius, poleHeight, 8);
+      const poleMaterial = new THREE.MeshStandardMaterial({ color: 0x333333 });
+      const pole = new THREE.Mesh(poleGeometry, poleMaterial);
+      pole.position.set(cornerX, poleHeight/2, cornerZ);
+      pole.castShadow = true;
+      this.scene.add(pole);
+      
+      // Create the light box
+      const lightBoxGeometry = new THREE.BoxGeometry(lightBoxWidth, lightBoxHeight, lightBoxDepth);
+      const lightBoxMaterial = new THREE.MeshStandardMaterial({ color: 0x222222 });
+      const lightBox = new THREE.Mesh(lightBoxGeometry, lightBoxMaterial);
+      
+      // Position the light box at the top of the pole
+      lightBox.position.set(0, poleHeight/2 + 0.2, 0);
+      
+      // Determine the orientation of the light box
+      let rotation = 0;
+      if (corner === 0) rotation = Math.PI / 4;
+      if (corner === 1) rotation = 3 * Math.PI / 4;
+      if (corner === 2) rotation = 5 * Math.PI / 4;
+      if (corner === 3) rotation = 7 * Math.PI / 4;
+      
+      lightBox.rotation.y = rotation;
+      pole.add(lightBox);
+      
+      // Add traffic lights
+      const lightRadius = 0.3;
+      const lights = [
+        { color: 0xFF0000, y: 1 },    // Red
+        { color: 0xFFFF00, y: 0 },    // Yellow
+        { color: 0x00FF00, y: -1 }    // Green
+      ];
+      
+      lights.forEach(light => {
+        // Create the light geometry
+        const lightGeometry = new THREE.CircleGeometry(lightRadius, 16);
+        
+        // Create material with emissive property for glow effect
+        const lightMaterial = new THREE.MeshStandardMaterial({
+          color: light.color,
+          emissive: light.color,
+          emissiveIntensity: 0.5
+        });
+        
+        const trafficLight = new THREE.Mesh(lightGeometry, lightMaterial);
+        trafficLight.position.set(0, light.y, lightBoxDepth/2 + 0.01);
+        
+        // Add to light box
+        lightBox.add(trafficLight);
+      });
+      
+      // Add physics body for the traffic light pole
+      const poleShape = new CANNON.Cylinder(poleRadius, poleRadius, poleHeight, 8);
+      const poleBody = new CANNON.Body({
+        mass: 0,
+        position: new CANNON.Vec3(cornerX, poleHeight/2, cornerZ)
+      });
+      poleBody.addShape(poleShape);
+      this.physicsWorld.addBody(poleBody);
     }
   }
   
