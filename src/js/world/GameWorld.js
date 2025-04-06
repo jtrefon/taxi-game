@@ -40,7 +40,7 @@ export class GameWorld {
       data[i * 3 + 2] = 50 + c; // B
     }
     
-    const grassTexture = new THREE.DataTexture(data, noiseSize, noiseSize, THREE.RGBFormat);
+    const grassTexture = new THREE.DataTexture(data, noiseSize, noiseSize, THREE.RGBAFormat);
     grassTexture.needsUpdate = true;
     groundMaterial.map = grassTexture;
     

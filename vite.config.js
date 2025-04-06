@@ -10,5 +10,13 @@ export default defineConfig({
     outDir: 'dist',
     assetsDir: 'assets',
     sourcemap: true
+  },
+  resolve: {
+    alias: {
+      'three': 'three'
+    }
+  },
+  optimizeDeps: {
+    include: ['three', 'cannon-es']
   }
 }); 
