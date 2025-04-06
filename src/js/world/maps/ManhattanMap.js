@@ -358,28 +358,28 @@ export class ManhattanMap extends BaseMap {
     const roadWidth = this.roadWidth;
     const sidewalkWidth = this.sidewalkWidth;
     // Increase lamp spacing to reduce total number
-    const lampSpacing = 120; // Much larger spacing between lamps
+    const lampSpacing = 160; // Even larger spacing between lamps
     
     // Place lamps along horizontal streets - on the sidewalks
     for (let z = 0; z <= this.gridHeight; z += 2) { // Only every other street
       const streetZ = (z - this.gridHeight / 2) * (blockSize + roadWidth);
-      for (let x = 0; x < this.gridWidth * (blockSize + roadWidth) * 2; x += lampSpacing) {
-        const lampX = x - this.gridWidth * (blockSize + roadWidth);
-        
+      for (let x = -this.gridWidth * (blockSize + roadWidth) / 2; x <= this.gridWidth * (blockSize + roadWidth) / 2; x += lampSpacing) {
         // Skip placing lamps in Central Park area
+        const gridX = Math.floor((x + this.gridWidth * (blockSize + roadWidth) / 2) / (blockSize + roadWidth));
+        const gridZ = z;
+        
         const isInParkX = (
-          lampX / (blockSize + roadWidth) + this.gridWidth / 2 >= this.centralParkX &&
-          lampX / (blockSize + roadWidth) + this.gridWidth / 2 <= this.centralParkX + this.centralParkWidth
+          gridX >= this.centralParkX && 
+          gridX < this.centralParkX + this.centralParkWidth
         );
         const isInParkZ = (
-          streetZ / (blockSize + roadWidth) + this.gridHeight / 2 >= this.centralParkY &&
-          streetZ / (blockSize + roadWidth) + this.gridHeight / 2 <= this.centralParkY + this.centralParkHeight
+          gridZ >= this.centralParkY && 
+          gridZ < this.centralParkY + this.centralParkHeight
         );
         
         if (!(isInParkX && isInParkZ)) {
-          // Place lamp on the sidewalk (roadWidth/2 + sidewalkWidth/2)
-          const lampPositionZ = streetZ - (roadWidth/2 + sidewalkWidth/2);
-          this.createStreetLamp(lampX, lampPositionZ);
+          // Place lamp on the north sidewalk
+          this.createStreetLamp(x, streetZ - (roadWidth/2 + sidewalkWidth/2));
         }
       }
     }
@@ -387,23 +387,23 @@ export class ManhattanMap extends BaseMap {
     // Place lamps along vertical streets - on the sidewalks
     for (let x = 0; x <= this.gridWidth; x += 2) { // Only every other street
       const streetX = (x - this.gridWidth / 2) * (blockSize + roadWidth);
-      for (let z = 0; z < this.gridHeight * (blockSize + roadWidth) * 2; z += lampSpacing) {
-        const lampZ = z - this.gridHeight * (blockSize + roadWidth);
+      for (let z = -this.gridHeight * (blockSize + roadWidth) / 2; z <= this.gridHeight * (blockSize + roadWidth) / 2; z += lampSpacing) {
+        // Skip placing lamps in Central Park area
+        const gridX = x;
+        const gridZ = Math.floor((z + this.gridHeight * (blockSize + roadWidth) / 2) / (blockSize + roadWidth));
         
-        // Skip placing lamps in Central Park area (similar check as above)
         const isInParkX = (
-          streetX / (blockSize + roadWidth) + this.gridWidth / 2 >= this.centralParkX &&
-          streetX / (blockSize + roadWidth) + this.gridWidth / 2 <= this.centralParkX + this.centralParkWidth
+          gridX >= this.centralParkX && 
+          gridX < this.centralParkX + this.centralParkWidth
         );
         const isInParkZ = (
-          lampZ / (blockSize + roadWidth) + this.gridHeight / 2 >= this.centralParkY &&
-          lampZ / (blockSize + roadWidth) + this.gridHeight / 2 <= this.centralParkY + this.centralParkHeight
+          gridZ >= this.centralParkY && 
+          gridZ < this.centralParkY + this.centralParkHeight
         );
         
         if (!(isInParkX && isInParkZ)) {
-          // Place lamp on the sidewalk (roadWidth/2 + sidewalkWidth/2)
-          const lampPositionX = streetX - (roadWidth/2 + sidewalkWidth/2);
-          this.createStreetLamp(lampPositionX, lampZ);
+          // Place lamp on the west sidewalk
+          this.createStreetLamp(streetX - (roadWidth/2 + sidewalkWidth/2), z);
         }
       }
     }
@@ -413,36 +413,33 @@ export class ManhattanMap extends BaseMap {
    * Create a street lamp at the specified position
    */
   createStreetLamp(x, z) {
-    // Lamp post
-    const postGeometry = new THREE.CylinderGeometry(0.3, 0.3, 7, 6);
+    // Simplified lamp with fewer geometries
+    // Combined post and fixture
+    const postGeometry = new THREE.BoxGeometry(0.8, 7, 0.8);
     const postMaterial = new THREE.MeshStandardMaterial({ color: 0x333333 });
     const post = new THREE.Mesh(postGeometry, postMaterial);
     post.position.set(x, 3.5, z);
     post.castShadow = true;
     this.scene.add(post);
     
-    // Lamp fixture
-    const fixtureGeometry = new THREE.CylinderGeometry(0.8, 0.8, 0.5, 8);
-    // Use emissive material instead of adding a light source
+    // Light fixture - just a simple box with emissive property
+    const fixtureGeometry = new THREE.BoxGeometry(1.2, 0.5, 1.2);
     const fixtureMaterial = new THREE.MeshStandardMaterial({ 
-      color: 0x666666,
+      color: 0xffffcc,
       emissive: 0xffffcc,
-      emissiveIntensity: 0.5
+      emissiveIntensity: 0.3 // Reduced intensity
     });
     const fixture = new THREE.Mesh(fixtureGeometry, fixtureMaterial);
-    fixture.position.set(x, 7.5, z);
-    fixture.castShadow = true;
+    fixture.position.set(x, 7.25, z);
     this.scene.add(fixture);
     
-    // No light source - remove to reduce shader complexity
-    
-    // Physics body for the lamp post
+    // Physics body
     const body = new CANNON.Body({
       mass: 0,
       position: new CANNON.Vec3(x, 3.5, z)
     });
     
-    body.addShape(new CANNON.Cylinder(0.3, 0.3, 7, 6));
+    body.addShape(new CANNON.Box(new CANNON.Vec3(0.4, 3.5, 0.4)));
     this.physicsWorld.addBody(body);
   }
   
@@ -454,7 +451,7 @@ export class ManhattanMap extends BaseMap {
     const roadWidth = this.roadWidth;
     const sidewalkWidth = this.sidewalkWidth;
     
-    // Place traffic lights at only a few major intersections
+    // Place even fewer traffic lights (increase spacing)
     for (let x = 0; x <= this.gridWidth; x += 4) { // Every 4th intersection
       for (let z = 0; z <= this.gridHeight; z += 4) { // Every 4th intersection
         const intersectionX = (x - this.gridWidth / 2) * (blockSize + roadWidth);
@@ -462,12 +459,12 @@ export class ManhattanMap extends BaseMap {
         
         // Skip placing traffic lights in Central Park area
         const isInParkX = (
-          x / (blockSize + roadWidth) + this.gridWidth / 2 >= this.centralParkX &&
-          x / (blockSize + roadWidth) + this.gridWidth / 2 <= this.centralParkX + this.centralParkWidth
+          x >= this.centralParkX && 
+          x < this.centralParkX + this.centralParkWidth
         );
         const isInParkZ = (
-          z / (blockSize + roadWidth) + this.gridHeight / 2 >= this.centralParkY &&
-          z / (blockSize + roadWidth) + this.gridHeight / 2 <= this.centralParkY + this.centralParkHeight
+          z >= this.centralParkY && 
+          z < this.centralParkY + this.centralParkHeight
         );
         
         if (!(isInParkX && isInParkZ)) {
@@ -484,69 +481,34 @@ export class ManhattanMap extends BaseMap {
    * Create a traffic light at the specified position
    */
   createTrafficLight(x, z) {
+    // Simplified traffic light - single box with material
     // Traffic light pole
-    const poleGeometry = new THREE.CylinderGeometry(0.2, 0.2, 5, 6);
+    const poleGeometry = new THREE.BoxGeometry(0.5, 5, 0.5);
     const poleMaterial = new THREE.MeshStandardMaterial({ color: 0x333333 });
     const pole = new THREE.Mesh(poleGeometry, poleMaterial);
     pole.position.set(x, 2.5, z);
     pole.castShadow = true;
     this.scene.add(pole);
     
-    // Traffic light housing
-    const housingGeometry = new THREE.BoxGeometry(0.6, 1.5, 0.6);
-    const housingMaterial = new THREE.MeshStandardMaterial({ color: 0x111111 });
+    // Traffic light housing - simpler geometry
+    const housingGeometry = new THREE.BoxGeometry(0.8, 1.8, 0.8);
+    const housingMaterial = new THREE.MeshStandardMaterial({ 
+      color: 0x111111,
+      emissive: 0x555555,
+      emissiveIntensity: 0.2
+    });
     const housing = new THREE.Mesh(housingGeometry, housingMaterial);
     housing.position.set(x, 5, z);
     housing.castShadow = true;
     this.scene.add(housing);
     
-    // Lights - red, yellow, green
-    const lightGeometry = new THREE.CircleGeometry(0.15, 8);
-    
-    const redMaterial = new THREE.MeshStandardMaterial({ 
-      color: 0xff0000,
-      emissive: 0xff0000,
-      emissiveIntensity: 0.5
-    });
-    
-    const yellowMaterial = new THREE.MeshStandardMaterial({ 
-      color: 0xffff00,
-      emissive: 0xffff00,
-      emissiveIntensity: 0.5  
-    });
-    
-    const greenMaterial = new THREE.MeshStandardMaterial({ 
-      color: 0x00ff00,
-      emissive: 0x00ff00,
-      emissiveIntensity: 0.5
-    });
-    
-    // Create and position the light circles
-    const redLight = new THREE.Mesh(lightGeometry, redMaterial);
-    redLight.position.set(x, 5.5, z + 0.31);
-    redLight.rotation.x = -Math.PI / 2;
-    redLight.rotation.y = Math.PI;
-    this.scene.add(redLight);
-    
-    const yellowLight = new THREE.Mesh(lightGeometry, yellowMaterial);
-    yellowLight.position.set(x, 5, z + 0.31);
-    yellowLight.rotation.x = -Math.PI / 2;
-    yellowLight.rotation.y = Math.PI;
-    this.scene.add(yellowLight);
-    
-    const greenLight = new THREE.Mesh(lightGeometry, greenMaterial);
-    greenLight.position.set(x, 4.5, z + 0.31);
-    greenLight.rotation.x = -Math.PI / 2;
-    greenLight.rotation.y = Math.PI;
-    this.scene.add(greenLight);
-    
-    // Physics body for the traffic light
+    // Physics body only for the pole to reduce complexity
     const body = new CANNON.Body({
       mass: 0,
       position: new CANNON.Vec3(x, 2.5, z)
     });
     
-    body.addShape(new CANNON.Cylinder(0.2, 0.2, 5, 6));
+    body.addShape(new CANNON.Box(new CANNON.Vec3(0.25, 2.5, 0.25)));
     this.physicsWorld.addBody(body);
   }
 } 

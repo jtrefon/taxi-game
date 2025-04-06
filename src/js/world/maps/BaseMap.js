@@ -15,28 +15,24 @@ export class BaseMap {
     this.roadWidth = 10;
     this.sidewalkWidth = 3;
     
-    // Materials
+    // Optimize materials with less complexity
     this.buildingMaterials = [
-      new THREE.MeshStandardMaterial({ color: 0x8c8c8c, roughness: 0.5 }),  // Grey concrete
-      new THREE.MeshStandardMaterial({ color: 0x4d6a96, roughness: 0.2 }),  // Blue glass
-      new THREE.MeshStandardMaterial({ color: 0xb87333, roughness: 0.6 }),  // Copper/brown
-      new THREE.MeshStandardMaterial({ color: 0xd9d9d9, roughness: 0.4 })   // Light grey
+      new THREE.MeshLambertMaterial({ color: 0x8c8c8c }),  // Grey concrete
+      new THREE.MeshLambertMaterial({ color: 0x4d6a96 }),  // Blue glass
+      new THREE.MeshLambertMaterial({ color: 0xb87333 }),  // Copper/brown
+      new THREE.MeshLambertMaterial({ color: 0xd9d9d9 })   // Light grey
     ];
     
-    this.roadMaterial = new THREE.MeshStandardMaterial({ 
-      color: 0x333333, 
-      roughness: 0.9,
-      metalness: 0.1
+    this.roadMaterial = new THREE.MeshLambertMaterial({ 
+      color: 0x333333
     });
     
-    this.sidewalkMaterial = new THREE.MeshStandardMaterial({ 
-      color: 0x999999, 
-      roughness: 0.8 
+    this.sidewalkMaterial = new THREE.MeshLambertMaterial({ 
+      color: 0x999999
     });
     
-    this.parkMaterial = new THREE.MeshStandardMaterial({ 
-      color: 0x2e8b57, 
-      roughness: 1.0 
+    this.parkMaterial = new THREE.MeshLambertMaterial({ 
+      color: 0x2e8b57
     });
   }
   
@@ -81,8 +77,10 @@ export class BaseMap {
     building.receiveShadow = true;
     this.scene.add(building);
     
-    // Add windows for visual interest
-    this.addWindowsToBuilding(building, width, height, depth);
+    // Add windows for visual interest - only for small buildings
+    if (height < 60) {
+      this.addWindowsToBuilding(building, width, height, depth);
+    }
     
     // Physics body
     const body = new CANNON.Body({
@@ -98,64 +96,39 @@ export class BaseMap {
   
   addWindowsToBuilding(building, width, height, depth) {
     // Skip window creation for very large or distant buildings to improve performance
-    if (height > 100) return;
+    if (height > 50) return;
     
-    // Simple window pattern - can be enhanced for more detailed buildings
-    const windowSize = 1.2;
-    const windowSpacing = 5.0; // Increased spacing between windows (was 2.5)
+    // Simple window pattern with much more aggressive optimization
+    const windowSize = 1.5;
+    const windowSpacing = 8.0; // Much larger spacing between windows
     const windowDepth = 0.1;
     
-    const windowGeometry = new THREE.BoxGeometry(windowSize, windowSize, windowDepth);
-    const windowMaterial = new THREE.MeshStandardMaterial({ 
-      color: 0xadd8e6, 
-      roughness: 0.2, 
-      metalness: 0.8,
+    const windowGeometry = new THREE.PlaneGeometry(windowSize, windowSize);
+    const windowMaterial = new THREE.MeshBasicMaterial({ 
+      color: 0xadd8e6,
       emissive: 0x333333
     });
     
-    // Calculate windows per side with reduced density
-    const widthWindows = Math.min(Math.floor(width / windowSpacing) - 1, 4); // Max 4 windows in width
-    const heightWindows = Math.min(Math.floor(height / windowSpacing) - 1, 8); // Max 8 windows in height
+    // Calculate windows per side with greatly reduced density
+    const widthWindows = Math.min(Math.floor(width / windowSpacing) - 1, 3); // Max 3 windows in width
+    const heightWindows = Math.min(Math.floor(height / windowSpacing) - 1, 5); // Max 5 windows in height
     
     // Only add windows if the building is big enough
     if (widthWindows <= 1 || heightWindows <= 1) return;
     
-    // Add windows to front and back, but with more aggressive culling
+    // Add windows to front only, with extreme culling
     for (let y = 1; y < heightWindows; y += 2) { // Skip every other row
-      for (let x = 1; x < widthWindows; x += 1) {
+      for (let x = 1; x < widthWindows; x += 2) { // Skip every other column
         // Skip more windows randomly for variety and performance
-        if (Math.random() < 0.6) continue; // 60% chance to skip (was 30%)
+        if (Math.random() < 0.7) continue; // 70% chance to skip
         
         const windowX = (x * windowSpacing) - (width / 2) + (windowSpacing / 2);
         const windowY = (y * windowSpacing) - (height / 2) + (windowSpacing / 2);
         
-        // Front windows only - skip back windows for better performance
+        // Front windows only
         const frontWindow = new THREE.Mesh(windowGeometry, windowMaterial);
         frontWindow.position.set(windowX, windowY, depth / 2 + 0.1);
         building.add(frontWindow);
-      }
-    }
-    
-    // Calculate windows for sides with reduced density
-    const depthWindows = Math.min(Math.floor(depth / windowSpacing) - 1, 4); // Max 4 windows in depth
-    
-    // Skip side windows for distant/tall buildings to improve performance
-    if (height > 50) return;
-    
-    // Add windows to sides with more aggressive culling
-    for (let y = 1; y < heightWindows; y += 2) { // Skip every other row
-      for (let z = 1; z < depthWindows; z += 1) {
-        // Skip more windows randomly
-        if (Math.random() < 0.6) continue; // 60% chance to skip (was 30%)
-        
-        const windowZ = (z * windowSpacing) - (depth / 2) + (windowSpacing / 2);
-        const windowY = (y * windowSpacing) - (height / 2) + (windowSpacing / 2);
-        
-        // Left side windows only - skip right side for better performance
-        const leftWindow = new THREE.Mesh(windowGeometry, windowMaterial);
-        leftWindow.position.set(-width / 2 - 0.1, windowY, windowZ);
-        leftWindow.rotation.y = Math.PI / 2;
-        building.add(leftWindow);
       }
     }
   }
@@ -181,53 +154,19 @@ export class BaseMap {
   }
   
   addRoadMarkings(x, z, length, width, isHorizontal) {
-    // Center line
+    // Center line only - skip other markings
     const lineWidth = 0.3;
     const lineGeometry = new THREE.BoxGeometry(
       isHorizontal ? length : lineWidth,
       0.11,
       isHorizontal ? lineWidth : length
     );
-    const lineMaterial = new THREE.MeshStandardMaterial({ color: 0xFFFFFF });
+    const lineMaterial = new THREE.MeshBasicMaterial({ color: 0xFFFFFF });
     const line = new THREE.Mesh(lineGeometry, lineMaterial);
     line.position.set(x, 0.11, z);
     this.scene.add(line);
     
-    // Add dashed lines on sides for lane separation if road is wide enough
-    if (width > 8) {
-      const dashLength = 3;
-      const dashGap = 2;
-      const dashesCount = Math.floor(length / (dashLength + dashGap));
-      const laneOffset = width / 4;
-      
-      for (let i = 0; i < dashesCount; i++) {
-        const dashOffset = (i * (dashLength + dashGap)) - (length / 2) + (dashLength / 2);
-        
-        const dashGeometry = new THREE.BoxGeometry(
-          isHorizontal ? dashLength : lineWidth,
-          0.11,
-          isHorizontal ? lineWidth : dashLength
-        );
-        
-        // Left lane dash
-        const leftDash = new THREE.Mesh(dashGeometry, lineMaterial);
-        leftDash.position.set(
-          isHorizontal ? x + dashOffset : x - laneOffset,
-          0.11,
-          isHorizontal ? z - laneOffset : z + dashOffset
-        );
-        this.scene.add(leftDash);
-        
-        // Right lane dash
-        const rightDash = new THREE.Mesh(dashGeometry, lineMaterial);
-        rightDash.position.set(
-          isHorizontal ? x + dashOffset : x + laneOffset,
-          0.11,
-          isHorizontal ? z + laneOffset : z + dashOffset
-        );
-        this.scene.add(rightDash);
-      }
-    }
+    // Skip side lane markings to reduce draw calls
   }
   
   addSidewalks(x, z, length, width, isHorizontal) {
