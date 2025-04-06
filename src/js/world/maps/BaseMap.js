@@ -285,6 +285,9 @@ export class BaseMap {
     const sidewalkY = sidewalkHeight / 2; // Position at half height for the geometry
     const safeOffset = 0.5; // Small gap between sidewalk and road edge
     
+    // Detect if this is an intersection by checking if the length and width are similar
+    const isIntersection = Math.abs(length - roadWidth) < 5;
+    
     // Get texture factory and sidewalk texture
     const textureFactory = this.getTextureFactory();
     const sidewalkTexture = textureFactory.getEnvironmentTexture('sidewalk');
@@ -295,6 +298,12 @@ export class BaseMap {
       metalness: 0.0,
       color: 0xCCCCCC // Light gray concrete
     });
+    
+    // If this is an intersection, create corner sidewalks instead of straight ones
+    if (isIntersection) {
+      this.createIntersectionCorners(x, z, roadWidth, sidewalkWidth, sidewalkHeight, sidewalkMaterial, sidewalkTexture);
+      return;
+    }
     
     // Create sidewalk geometries with height
     for (let side = 0; side < 2; side++) {
@@ -378,6 +387,133 @@ export class BaseMap {
       
       sidewalkBody.addShape(sidewalkShape);
       this.physicsWorld.addBody(sidewalkBody);
+    }
+  }
+  
+  /**
+   * Create sidewalk corners at intersections
+   */
+  createIntersectionCorners(x, z, roadWidth, sidewalkWidth, sidewalkHeight, sidewalkMaterial, sidewalkTexture) {
+    const halfRoadWidth = roadWidth / 2;
+    const cornerOffset = halfRoadWidth + sidewalkWidth / 2 + 0.5; // 0.5 is the gap
+    const cornerSize = sidewalkWidth * 2;
+    const sidewalkY = sidewalkHeight / 2;
+    
+    // Create four corner sidewalks
+    for (let corner = 0; corner < 4; corner++) {
+      // Determine position for each corner
+      const xFactor = (corner === 0 || corner === 3) ? -1 : 1;
+      const zFactor = (corner === 0 || corner === 1) ? -1 : 1;
+      
+      const cornerX = x + xFactor * cornerOffset;
+      const cornerZ = z + zFactor * cornerOffset;
+      
+      // Create the corner sidewalk as a box
+      const cornerGeometry = new THREE.BoxGeometry(cornerSize, sidewalkHeight, cornerSize);
+      
+      // Set texture repeat based on size
+      if (sidewalkTexture) {
+        sidewalkTexture.repeat.set(cornerSize / 10, cornerSize / 10);
+        sidewalkTexture.needsUpdate = true;
+      }
+      
+      const cornerMesh = new THREE.Mesh(cornerGeometry, sidewalkMaterial);
+      cornerMesh.position.set(cornerX, sidewalkY, cornerZ);
+      cornerMesh.receiveShadow = true;
+      this.scene.add(cornerMesh);
+      
+      // Create inner curb (rounded corner)
+      const curbHeight = 0.15;
+      const curbSegments = 8; // Number of segments in the curved part
+      const curbThickness = 0.25;
+      const curbInnerRadius = sidewalkWidth / 2;
+      
+      // Create a custom curb geometry for the rounded inner corner
+      const curbPoints = [];
+      const innerCornerX = cornerX - xFactor * sidewalkWidth / 2;
+      const innerCornerZ = cornerZ - zFactor * sidewalkWidth / 2;
+      
+      // Calculate curb points for a rounded corner
+      for (let i = 0; i <= curbSegments; i++) {
+        const angle = (i / curbSegments) * Math.PI / 2;
+        const startAngle = Math.PI * (
+          (corner === 0) ? 0 : 
+          (corner === 1) ? 1.5 : 
+          (corner === 2) ? 1 : 
+          0.5
+        );
+        
+        const pointX = innerCornerX + xFactor * Math.cos(startAngle + angle) * curbInnerRadius;
+        const pointZ = innerCornerZ + zFactor * Math.sin(startAngle + angle) * curbInnerRadius;
+        
+        curbPoints.push(new THREE.Vector3(pointX - cornerX, 0, pointZ - cornerZ));
+      }
+      
+      // Create a shape from the points
+      const curbShape = new THREE.Shape();
+      
+      // Start at the first point
+      curbShape.moveTo(curbPoints[0].x, curbPoints[0].z);
+      
+      // Connect each point
+      for (let i = 1; i < curbPoints.length; i++) {
+        curbShape.lineTo(curbPoints[i].x, curbPoints[i].z);
+      }
+      
+      // Create the outer points by adding the thickness
+      const outerPoints = [];
+      for (let i = curbPoints.length - 1; i >= 0; i--) {
+        outerPoints.push(new THREE.Vector3(
+          curbPoints[i].x + xFactor * curbThickness,
+          0,
+          curbPoints[i].z + zFactor * curbThickness
+        ));
+      }
+      
+      // Add outer points to complete the shape
+      for (let i = 0; i < outerPoints.length; i++) {
+        curbShape.lineTo(outerPoints[i].x, outerPoints[i].z);
+      }
+      
+      // Close the shape
+      curbShape.lineTo(curbPoints[0].x, curbPoints[0].z);
+      
+      // Extrude the curb
+      const extrudeSettings = {
+        steps: 1,
+        depth: curbHeight,
+        bevelEnabled: false
+      };
+      
+      const curbGeometry = new THREE.ExtrudeGeometry(curbShape, extrudeSettings);
+      
+      const curbMaterial = new THREE.MeshStandardMaterial({
+        color: 0x999999, // Medium gray concrete
+        roughness: 0.9
+      });
+      
+      const curb = new THREE.Mesh(curbGeometry, curbMaterial);
+      curb.rotation.x = -Math.PI / 2; // Rotate to horizontal
+      curb.position.set(cornerX, curbHeight, cornerZ);
+      curb.receiveShadow = true;
+      curb.castShadow = true;
+      this.scene.add(curb);
+      
+      // Add physics body for the corner
+      const cornerShape = new CANNON.Box(new CANNON.Vec3(
+        cornerSize / 2,
+        sidewalkHeight / 2,
+        cornerSize / 2
+      ));
+      
+      const cornerBody = new CANNON.Body({
+        mass: 0,
+        type: CANNON.Body.STATIC
+      });
+      
+      cornerBody.position.set(cornerX, sidewalkY, cornerZ);
+      cornerBody.addShape(cornerShape);
+      this.physicsWorld.addBody(cornerBody);
     }
   }
   
