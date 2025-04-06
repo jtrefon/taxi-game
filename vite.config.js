@@ -10,24 +10,11 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
-    sourcemap: true,
-    rollupOptions: {
-      input: {
-        main: resolve(__dirname, 'index.html'),
-      },
-      output: {
-        manualChunks: {
-          three: ['three'],
-          cannon: ['cannon-es']
-        }
-      }
-    }
+    sourcemap: true
   },
   resolve: {
     alias: {
-      '@': resolve(__dirname, './src'),
-      'three': resolve(__dirname, './node_modules/three/build/three.module.js'),
-      'cannon-es': resolve(__dirname, './node_modules/cannon-es/dist/cannon-es.js')
+      '@': resolve(__dirname, './src')
     }
   },
   optimizeDeps: {
