@@ -1,5 +1,5 @@
-import * as THREE from './node_modules/three/build/three.module.js';
-import * as CANNON from './node_modules/cannon-es/dist/cannon-es.js';
+import * as THREE from '../../../libs/three.module.js';
+import * as CANNON from '../../../libs/cannon-es.js';
 
 /**
  * Base class for all game maps.

@@ -1,7 +1,7 @@
-import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import * as CANNON from 'cannon-es';
+import * as THREE from '../libs/three.module.js';
+import { OrbitControls } from '../libs/OrbitControls.js';
+import { GLTFLoader } from '../libs/GLTFLoader.js';
+import * as CANNON from '../libs/cannon-es.js';
 
 import { GameWorld } from './world/GameWorld.js';
 import { Vehicle } from './entities/Vehicle.js';
