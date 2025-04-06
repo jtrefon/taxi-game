@@ -9,6 +9,7 @@ import { InputHandler } from './core/InputHandler.js';
 import { MobileControls } from './ui/MobileControls.js';
 import { FullscreenButton } from './ui/FullscreenButton.js';
 import { MapManager } from './world/maps/MapManager.js';
+import { NPCFactory } from './world/NPCFactory.js';
 
 class Game {
   constructor() {
@@ -23,11 +24,16 @@ class Game {
     this.money = 0;
     this.isPlaying = false;
     this.showFps = true; // Flag to control FPS counter visibility
+    this.npcs = []; // Array to hold active NPCs
+    this.maxNPCs = 15; // Limit the number of NPCs for performance
+    this.npcSpawnTimer = 0;
+    this.npcSpawnInterval = 3000; // Try spawning an NPC every 3 seconds
     
     // FPS Calculation state
     this.lastFrameTime = performance.now();
     this.frameCount = 0;
     this.fps = 0;
+    this.fpsTime = 0;
     
     // Camera panning state - Using angles now
     this.isPanning = false;
@@ -139,6 +145,9 @@ class Game {
       environmentMap: this.gameWorld.getEnvironmentMap()
     });
     this.currentMap = this.mapManager.createMap('manhattan'); // Store reference to the map
+
+    // Initialize NPC Factory
+    this.npcFactory = new NPCFactory(this.scene, this.physicsWorld);
 
     // Get traffic light systems from the created map
     if (this.currentMap && typeof this.currentMap.getTrafficLightSystems === 'function') {
@@ -290,57 +299,19 @@ class Game {
   }
   
   updateTrafficLights(deltaTime) {
-    this.trafficLightTimer += deltaTime * 1000; // Convert deltaTime (seconds) to milliseconds
-
+    this.trafficLightTimer += deltaTime;
+    
     if (this.trafficLightTimer >= this.trafficLightInterval) {
       this.trafficLightTimer = 0;
-
+      
       // Swap states
       const tempState = this.trafficLightStateNS;
       this.trafficLightStateNS = this.trafficLightStateEW;
       this.trafficLightStateEW = tempState;
-
-      // Update light visuals
-      this.trafficLights.forEach(lightBox => {
-        // Safety Check: Ensure lightBox exists and has userData
-        if (!lightBox || !lightBox.userData || typeof lightBox.userData.direction === 'undefined') {
-          console.warn('Skipping invalid traffic lightBox:', lightBox);
-          return; // Skip this lightBox if invalid
-        }
-
-        const direction = lightBox.userData.direction;
-        const targetState = (direction === 'NS') ? this.trafficLightStateNS : this.trafficLightStateEW;
-
-        // Safety Check: Ensure lightBox has children array
-        if (!Array.isArray(lightBox.children)) {
-          console.warn('Skipping lightBox with no children:', lightBox);
-          return;
-        }
-
-        lightBox.children.forEach(lightMesh => {
-          // Safety Check: Ensure lightMesh is a Mesh and has userData and material
-          if (!lightMesh || !(lightMesh instanceof THREE.Mesh) || !lightMesh.userData || typeof lightMesh.userData.color === 'undefined' || !lightMesh.material) {
-            // console.log('Skipping non-light mesh or invalid mesh in lightBox:', lightMesh); // Optional: log skipped children
-            return; // Skip this child if it's not a valid light mesh
-          }
-
-          const color = lightMesh.userData.color;
-          let newIntensity = lightMesh.material.emissiveIntensity; // Default to current
-
-          if (color === 'yellow') {
-            newIntensity = 0; // Keep yellow off for now
-          } else if (color === targetState) {
-            newIntensity = 1.0; // Turn target light ON
-          } else {
-            newIntensity = 0.05; // Keep other light dimly ON (or fully OFF: 0)
-          }
-
-          // Only update if intensity changed
-          if (lightMesh.material.emissiveIntensity !== newIntensity) {
-            lightMesh.material.emissiveIntensity = newIntensity;
-            lightMesh.material.needsUpdate = true; // Ensure material change takes effect
-          }
-        });
+      
+      // Update all traffic light systems
+      this.trafficLights.forEach(system => {
+        system.setState(this.trafficLightStateNS, this.trafficLightStateEW);
       });
     }
   }
@@ -389,40 +360,265 @@ class Game {
     }
   }
   
+  updateNPCs(deltaTime) {
+    // 1. Try spawning new NPCs
+    this.npcSpawnTimer += deltaTime * 1000;
+    if (this.npcSpawnTimer >= this.npcSpawnInterval && this.npcs.length < this.maxNPCs) {
+        console.log(`Attempting to spawn NPC. Current count: ${this.npcs.length}`); // Log spawn attempt
+        this.npcSpawnTimer = 0;
+        this.spawnNPC();
+    }
+
+    // 2. Update existing NPCs (movement, despawning, etc.)
+    const playerPosition = this.playerVehicle.getPosition();
+    const despawnDistanceSq = 100 * 100; // Despawn if further than 100 units away
+
+    for (let i = this.npcs.length - 1; i >= 0; i--) {
+        const npcGroup = this.npcs[i];
+        
+        // Skip if NPC is not properly initialized
+        if (!npcGroup || !npcGroup.userData || !npcGroup.userData.npc) {
+            console.warn(`Skipping invalid NPC at index ${i}`);
+            this.despawnNPC(i);
+            continue;
+        }
+        
+        const npcData = npcGroup.userData.npc;
+        
+        // Skip if physics body is missing
+        if (!npcData.body) {
+            console.warn(`NPC at index ${i} has no physics body`);
+            this.despawnNPC(i);
+            continue;
+        }
+        
+        const npcBody = npcData.body;
+
+        // Update mesh position from physics body
+        npcGroup.position.copy(npcBody.position);
+        npcGroup.quaternion.copy(npcBody.quaternion);
+
+        // Simple walking behavior: move towards target, set new target if reached
+        if (npcData.state === 'walking') {
+            if (!npcData.targetPosition || npcBody.position.distanceTo(npcData.targetPosition) < 1.0) {
+                // Find a new random target point on a sidewalk near the NPC
+                npcData.targetPosition = this.findRandomSidewalkPointNear(npcBody.position, 10);
+            }
+
+            if (npcData.targetPosition) {
+                // CANNON.Vec3 doesn't have .clone(), so manually create a direction vector
+                const direction = new CANNON.Vec3(
+                    npcData.targetPosition.x - npcBody.position.x,
+                    0, // Keep Y movement at zero to stay level
+                    npcData.targetPosition.z - npcBody.position.z
+                );
+                
+                // Normalize vector (convert to unit vector)
+                const length = Math.sqrt(direction.x * direction.x + direction.z * direction.z);
+                if (length > 0) {
+                    direction.x /= length;
+                    direction.z /= length;
+                
+                    // Scale by speed
+                    const force = new CANNON.Vec3(
+                        direction.x * npcData.speed * 50,
+                        0,
+                        direction.z * npcData.speed * 50
+                    );
+                
+                    // Apply force in the direction of the target
+                    npcBody.applyForce(force, npcBody.position);
+                    
+                    // Make NPC face the direction of movement
+                    const targetQuaternion = new THREE.Quaternion().setFromUnitVectors(
+                        new THREE.Vector3(0, 0, 1), // Default forward direction
+                        new THREE.Vector3(direction.x, 0, direction.z).normalize() // Target direction (horizontal plane)
+                    );
+                    npcBody.quaternion.slerp(targetQuaternion, 0.1, npcBody.quaternion); // Smooth rotation
+                }
+            }
+        }
+
+        // 3. Despawn NPCs far from the player
+        const dx = npcBody.position.x - playerPosition.x;
+        const dz = npcBody.position.z - playerPosition.z;
+        const distanceSquared = dx * dx + dz * dz;
+        
+        if (distanceSquared > despawnDistanceSq) {
+            this.despawnNPC(i);
+        }
+    }
+  }
+
+  spawnNPC() {
+      try {
+          // Get a random spawn point on a sidewalk from the map
+          let spawnPoint = null;
+          
+          if (this.currentMap && typeof this.currentMap.getRandomSidewalkPoint === 'function') {
+              spawnPoint = this.currentMap.getRandomSidewalkPoint();
+          }
+          
+          // If no valid sidewalk point is found, use a fixed position near the center
+          if (!spawnPoint) {
+              console.log("Using fixed spawn point as no sidewalk point was found");
+              
+              // Get the road network dimensions from map, or use default values
+              const mapWidth = this.currentMap && typeof this.currentMap.gridWidth === 'function' 
+                  ? this.currentMap.gridWidth() * (this.currentMap.blockSize || 50) 
+                  : 200;
+              
+              const mapHeight = this.currentMap && typeof this.currentMap.gridHeight === 'function'
+                  ? this.currentMap.gridHeight() * (this.currentMap.blockSize || 50)
+                  : 200;
+              
+              // Create fixed points around the center of the map, near roads
+              const fixedPositions = [
+                  new CANNON.Vec3(-20, 0.5, -20),  // Southwest of center
+                  new CANNON.Vec3(20, 0.5, -20),   // Southeast of center
+                  new CANNON.Vec3(-20, 0.5, 20),   // Northwest of center
+                  new CANNON.Vec3(20, 0.5, 20),    // Northeast of center
+                  new CANNON.Vec3(0, 0.5, 30),     // North of center
+                  new CANNON.Vec3(0, 0.5, -30),    // South of center
+                  new CANNON.Vec3(30, 0.5, 0),     // East of center
+                  new CANNON.Vec3(-30, 0.5, 0)     // West of center
+              ];
+              
+              // Choose a random position from the fixed positions
+              spawnPoint = fixedPositions[Math.floor(Math.random() * fixedPositions.length)];
+          }
+
+          // Create the NPC using the factory
+          const npc = this.npcFactory.createNPC(spawnPoint.x, spawnPoint.z);
+          if (npc) {
+              this.npcs.push(npc);
+              console.log(`NPC created successfully! Total NPCs: ${this.npcs.length}`);
+          } else {
+               console.error('NPCFactory failed to create NPC object.');
+          }
+      } catch (error) {
+          console.error('Error in spawnNPC:', error);
+      }
+  }
+
+  despawnNPC(index) {
+      // Check if the index is valid
+      if (index < 0 || index >= this.npcs.length) {
+          console.warn(`Invalid NPC index: ${index}`);
+          return;
+      }
+      
+      const npcGroup = this.npcs[index];
+      if (!npcGroup) {
+          console.warn(`No NPC found at index: ${index}`);
+          this.npcs.splice(index, 1);
+          return;
+      }
+      
+      try {
+          // Remove physics body
+          if (npcGroup.userData && npcGroup.userData.npc && npcGroup.userData.npc.body) {
+              this.physicsWorld.removeBody(npcGroup.userData.npc.body);
+          } else if (npcGroup.userData && npcGroup.userData.physicsBody) {
+              this.physicsWorld.removeBody(npcGroup.userData.physicsBody);
+          }
+          
+          // Remove mesh from scene
+          this.scene.remove(npcGroup);
+          
+      } catch (error) {
+          console.error(`Error despawning NPC at index ${index}:`, error);
+      } finally {
+          // Always remove from our tracking array
+          this.npcs.splice(index, 1);
+      }
+  }
+  
+  findRandomSidewalkPointNear(position, radius) {
+     if (!this.currentMap || typeof this.currentMap.getRandomSidewalkPoint !== 'function') {
+          // If no sidewalk points are available, create a new random point near current position
+          const angle = Math.random() * Math.PI * 2;
+          const distance = Math.random() * radius;
+          return new CANNON.Vec3(
+              position.x + Math.cos(angle) * distance,
+              position.y,
+              position.z + Math.sin(angle) * distance
+          );
+     }
+     
+     // Simple approach: try a few times to find a point within the radius
+     for (let i = 0; i < 5; i++) {
+          const point = this.currentMap.getRandomSidewalkPoint();
+          if (point) {
+              // Calculate distance manually since CANNON.Vec3 doesn't have a distanceTo method
+              const dx = point.x - position.x;
+              const dz = point.z - position.z;
+              const distance = Math.sqrt(dx * dx + dz * dz);
+              
+              if (distance <= radius) {
+                  return point;
+              }
+          }
+     }
+     
+     // If failed, just return any random point, or create a new one if nothing available
+     const fallbackPoint = this.currentMap.getRandomSidewalkPoint();
+     if (fallbackPoint) {
+         return fallbackPoint;
+     } else {
+         // Create a random point near the current position as last resort
+         const angle = Math.random() * Math.PI * 2;
+         const distance = Math.random() * radius;
+         return new CANNON.Vec3(
+             position.x + Math.cos(angle) * distance,
+             position.y,
+             position.z + Math.sin(angle) * distance
+         );
+     }
+  }
+  
   update(deltaTime) {
-    // Update physics world
-    this.physicsWorld.step(1 / 60, deltaTime, 3);
+    // console.log(`Game.update - deltaTime: ${deltaTime.toFixed(4)}, isPlaying: ${this.isPlaying}`); // REMOVED Log start of update
+    if (!this.isPlaying) return;
+    // console.log("Game.update - Running update logic..."); // REMOVED Log after isPlaying check
     
-    // Update game world
-    this.gameWorld.update(deltaTime);
+    // Calculate FPS
+    const now = performance.now();
+    const delta = (now - this.lastFrameTime) / 1000;
+    this.lastFrameTime = now;
+    this.frameCount++;
+    if (now >= this.fpsTime + 1000) {
+      this.fps = this.frameCount;
+      this.frameCount = 0;
+      this.fpsTime = now;
+      if (this.showFps && this.fpsElement) {
+        this.fpsElement.textContent = `FPS: ${this.fps}`;
+      }
+    }
+
+    // Update physics world
+    this.physicsWorld.step(1 / 60, delta, 3);
     
     // Update player vehicle
-    if (this.playerVehicle) {
-      this.playerVehicle.update(deltaTime, this.input);
-    }
-    
-    // Check and handle vehicle reset
-    this.updateVehicleReset(deltaTime);
-    
-    // Update camera
-    this.updateCamera();
+    this.playerVehicle.update(deltaTime, this.input);
     
     // Update traffic lights
     this.updateTrafficLights(deltaTime);
     
-    // Update HUD
+    // Update NPCs (Spawning and Movement)
+    this.updateNPCs(deltaTime);
+
+    // Update game world (e.g., environment animations)
+    this.gameWorld.update(deltaTime);
+    
+    // Update camera
+    this.updateCamera();
+    
+    // Update UI
     this.updateHUD();
     
-    // Calculate FPS
-    const now = performance.now();
-    const delta = now - this.lastFrameTime;
-    this.frameCount++;
-
-    if (delta >= 1000) { // Update FPS counter every second
-        this.fps = (this.frameCount * 1000) / delta;
-        this.frameCount = 0;
-        this.lastFrameTime = now;
-    }
+    // Check for vehicle reset
+    this.updateVehicleReset(deltaTime);
   }
   
   animate() {

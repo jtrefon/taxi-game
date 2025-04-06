@@ -10,6 +10,7 @@ export class BaseMap {
     this.scene = scene;
     this.physicsWorld = physicsWorld;
     this.trafficLightSystems = []; // Array to hold traffic light boxes
+    this.sidewalkMeshes = []; // Store references to sidewalk meshes
     
     // Common map properties
     this.blockSize = 50;
@@ -1310,5 +1311,82 @@ export class BaseMap {
     });
     benchBody.addShape(benchShape);
     this.physicsWorld.addBody(benchBody);
+  }
+  
+  /**
+   * Add sidewalks along a road segment.
+   * Stores sidewalk meshes for later use (e.g., NPC spawning).
+   */
+  addSidewalks(x, z, length, width, isHorizontal) {
+    const sidewalkWidth = this.sidewalkWidth;
+    const halfWidth = width / 2;
+    const halfLength = length / 2;
+    
+    // Create sidewalk geometries with slightly extended length to ensure overlap
+    const sideGeometry = new THREE.BoxGeometry(
+      isHorizontal ? length + 1 : sidewalkWidth, // Add 1 unit overlap on both ends
+      0.3, // Increased height to be visibly above roads
+      isHorizontal ? sidewalkWidth : length + 1 // Add 1 unit overlap on both ends
+    );
+    
+    // Position offsets
+    const sideOffset = halfWidth + (sidewalkWidth / 2);
+    
+    // Upper sidewalk
+    const upperSidewalk = new THREE.Mesh(sideGeometry, this.sidewalkMaterial);
+    upperSidewalk.position.set(
+      isHorizontal ? x : x - sideOffset + sidewalkWidth / 2,
+      0.15, // Y position raised to be above roads
+      isHorizontal ? z - sideOffset + sidewalkWidth / 2 : z
+    );
+    upperSidewalk.receiveShadow = true;
+    this.scene.add(upperSidewalk); // Store reference
+    
+    // Lower sidewalk
+    const lowerSidewalk = new THREE.Mesh(sideGeometry, this.sidewalkMaterial);
+    lowerSidewalk.position.set(
+      isHorizontal ? x : x + sideOffset - sidewalkWidth / 2,
+      0.15, // Y position raised to be above roads
+      isHorizontal ? z + sideOffset - sidewalkWidth / 2 : z
+    );
+    lowerSidewalk.receiveShadow = true;
+    this.scene.add(lowerSidewalk);
+    this.sidewalkMeshes.push(lowerSidewalk); // Store reference
+  }
+  
+  /**
+   * Get a random point on one of the created sidewalks.
+   * Used for spawning NPCs.
+   * @returns {CANNON.Vec3 | null} A random point on a sidewalk or null if no sidewalks exist.
+   */
+  getRandomSidewalkPoint() {
+      if (this.sidewalkMeshes.length === 0) {
+          return null;
+      }
+
+      // Pick a random sidewalk mesh
+      const randomSidewalk = this.sidewalkMeshes[Math.floor(Math.random() * this.sidewalkMeshes.length)];
+      
+      // Calculate random point within the bounds of that sidewalk mesh
+      const geometry = randomSidewalk.geometry;
+      if (!geometry.boundingBox) {
+           geometry.computeBoundingBox(); // Ensure bounding box is calculated
+      }
+      const bounds = geometry.boundingBox;
+      
+      const randomXOffset = (Math.random() - 0.5) * (bounds.max.x - bounds.min.x);
+      const randomZOffset = (Math.random() - 0.5) * (bounds.max.z - bounds.min.z);
+
+      // Get the world position of the sidewalk center
+      const sidewalkPosition = randomSidewalk.position.clone();
+      
+      // Add the random offset to the center position
+      const spawnPoint = new CANNON.Vec3(
+          sidewalkPosition.x + randomXOffset,
+          sidewalkPosition.y + 0.5, // Spawn slightly above the sidewalk surface
+          sidewalkPosition.z + randomZOffset
+      );
+
+      return spawnPoint;
   }
 } 
