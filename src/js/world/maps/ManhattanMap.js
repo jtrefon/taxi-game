@@ -141,25 +141,26 @@ export class ManhattanMap extends BaseMap {
    */
   createFinancialDistrictBlock(x, z) {
     // Financial district has fewer, taller buildings
-    const buildingCount = 1 + Math.floor(Math.random() * 2); // 1-2 buildings per block
+    // Limit to only one building per block for better performance
+    const buildingCount = 1;
     const blockSize = this.blockSize;
     
     for (let i = 0; i < buildingCount; i++) {
-      // Tall skyscrapers
-      const height = 80 + Math.random() * 120; // 80-200 height
+      // Tall skyscrapers, but with reduced maximum height
+      const height = 80 + Math.random() * 80; // 80-160 height (reduced from 200)
       
       // Size takes up more space but still keeps some margin
       const width = 20 + Math.random() * 15;
       const depth = 20 + Math.random() * 15;
       
       // Position with some slight variation if multiple buildings
-      const offsetX = buildingCount > 1 ? (Math.random() * 2 - 1) * 10 : 0;
-      const offsetZ = buildingCount > 1 ? (Math.random() * 2 - 1) * 10 : 0;
+      const offsetX = 0; // No offset with single building
+      const offsetZ = 0; // No offset with single building
       
       // Material index for glass buildings
       const materialIndex = 1; // Blue glass material
       
-      // Create a building
+      // Create a building with simpler windows
       this.createBuilding(x + offsetX, z + offsetZ, width, depth, height, materialIndex);
     }
   }
@@ -168,8 +169,7 @@ export class ManhattanMap extends BaseMap {
    * Create a residential block with smaller, more densely packed buildings
    */
   createResidentialBlock(x, z) {
-    // Residential areas have more, smaller buildings
-    const buildingCount = 3 + Math.floor(Math.random() * 3); // 3-5 buildings per block
+    // Residential areas have fewer buildings
     const blockSize = this.blockSize;
     
     // Use perimeter layout for residential blocks
@@ -178,16 +178,17 @@ export class ManhattanMap extends BaseMap {
     const buildingDepth = 12; // Standard depth for buildings facing the street
     const distFromEdge = blockSize / 2 - buildingDepth / 2 - 2; // Position near the edge
     
-    // Randomly select 2-4 sides to place buildings on
-    const sides = [0, 1, 2, 3].sort(() => Math.random() - 0.5).slice(0, 2 + Math.floor(Math.random() * 3));
+    // Randomly select 1-2 sides to place buildings on (reduced from 2-4)
+    const sides = [0, 1, 2, 3].sort(() => Math.random() - 0.5).slice(0, 1 + Math.floor(Math.random() * 2));
     
     // Place buildings on the selected sides
     for (const side of sides) {
-      const buildingsOnSide = 1 + Math.floor(Math.random() * 2); // 1-2 buildings per side
+      // Only 1 building per side for simplicity
+      const buildingsOnSide = 1;
       
       for (let i = 0; i < buildingsOnSide; i++) {
-        // Medium sized buildings
-        const height = 15 + Math.random() * 25; // 15-40 height
+        // Medium sized buildings with reduced height
+        const height = 15 + Math.random() * 15; // 15-30 height (reduced from 15-40)
         
         // Width varies based on how many buildings on this side
         const buildingWidth = blockSize / (buildingsOnSide + 0.5) * 0.8;
@@ -334,10 +335,10 @@ export class ManhattanMap extends BaseMap {
    * Add decorative elements to the map
    */
   createDecorations() {
-    // Add street lamps along roads
+    // Add street lamps along roads with fewer lights
     this.addStreetLamps();
     
-    // Add traffic lights at major intersections
+    // Add traffic lights at major intersections with fewer lights
     this.addTrafficLights();
   }
   
@@ -347,10 +348,11 @@ export class ManhattanMap extends BaseMap {
   addStreetLamps() {
     const blockSize = this.blockSize;
     const roadWidth = this.roadWidth;
-    const lampSpacing = 40; // Distance between lamps
+    // Increase lamp spacing to reduce total number
+    const lampSpacing = 120; // Much larger spacing between lamps
     
     // Place lamps along horizontal streets
-    for (let z = 0; z <= this.gridHeight; z++) {
+    for (let z = 0; z <= this.gridHeight; z += 2) { // Only every other street
       const streetZ = (z - this.gridHeight / 2) * (blockSize + roadWidth);
       for (let x = 0; x < this.gridWidth * (blockSize + roadWidth) * 2; x += lampSpacing) {
         const lampX = x - this.gridWidth * (blockSize + roadWidth);
@@ -372,7 +374,7 @@ export class ManhattanMap extends BaseMap {
     }
     
     // Place lamps along vertical streets
-    for (let x = 0; x <= this.gridWidth; x++) {
+    for (let x = 0; x <= this.gridWidth; x += 2) { // Only every other street
       const streetX = (x - this.gridWidth / 2) * (blockSize + roadWidth);
       for (let z = 0; z < this.gridHeight * (blockSize + roadWidth) * 2; z += lampSpacing) {
         const lampZ = z - this.gridHeight * (blockSize + roadWidth);
@@ -408,16 +410,18 @@ export class ManhattanMap extends BaseMap {
     
     // Lamp fixture
     const fixtureGeometry = new THREE.CylinderGeometry(0.8, 0.8, 0.5, 8);
-    const fixtureMaterial = new THREE.MeshStandardMaterial({ color: 0x666666 });
+    // Use emissive material instead of adding a light source
+    const fixtureMaterial = new THREE.MeshStandardMaterial({ 
+      color: 0x666666,
+      emissive: 0xffffcc,
+      emissiveIntensity: 0.5
+    });
     const fixture = new THREE.Mesh(fixtureGeometry, fixtureMaterial);
     fixture.position.set(x, 7.5, z);
     fixture.castShadow = true;
     this.scene.add(fixture);
     
-    // Light source
-    const light = new THREE.PointLight(0xffffcc, 0.5, 20);
-    light.position.set(x, 7.5, z);
-    this.scene.add(light);
+    // No light source - remove to reduce shader complexity
     
     // Physics body for the lamp post
     const body = new CANNON.Body({
@@ -436,9 +440,9 @@ export class ManhattanMap extends BaseMap {
     const blockSize = this.blockSize;
     const roadWidth = this.roadWidth;
     
-    // Place traffic lights at major intersections
-    for (let x = 0; x <= this.gridWidth; x += 2) {
-      for (let z = 0; z <= this.gridHeight; z += 2) {
+    // Place traffic lights at only a few major intersections
+    for (let x = 0; x <= this.gridWidth; x += 4) { // Every 4th intersection
+      for (let z = 0; z <= this.gridHeight; z += 4) { // Every 4th intersection
         const intersectionX = (x - this.gridWidth / 2) * (blockSize + roadWidth);
         const intersectionZ = (z - this.gridHeight / 2) * (blockSize + roadWidth);
         

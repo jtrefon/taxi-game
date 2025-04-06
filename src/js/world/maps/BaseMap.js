@@ -97,9 +97,12 @@ export class BaseMap {
   }
   
   addWindowsToBuilding(building, width, height, depth) {
+    // Skip window creation for very large or distant buildings to improve performance
+    if (height > 100) return;
+    
     // Simple window pattern - can be enhanced for more detailed buildings
     const windowSize = 1.2;
-    const windowSpacing = 2.5;
+    const windowSpacing = 5.0; // Increased spacing between windows (was 2.5)
     const windowDepth = 0.1;
     
     const windowGeometry = new THREE.BoxGeometry(windowSize, windowSize, windowDepth);
@@ -110,57 +113,49 @@ export class BaseMap {
       emissive: 0x333333
     });
     
-    // Calculate windows per side
-    const widthWindows = Math.floor(width / windowSpacing) - 1;
-    const heightWindows = Math.floor(height / windowSpacing) - 1;
+    // Calculate windows per side with reduced density
+    const widthWindows = Math.min(Math.floor(width / windowSpacing) - 1, 4); // Max 4 windows in width
+    const heightWindows = Math.min(Math.floor(height / windowSpacing) - 1, 8); // Max 8 windows in height
     
     // Only add windows if the building is big enough
     if (widthWindows <= 1 || heightWindows <= 1) return;
     
-    // Add windows to front and back
-    for (let y = 1; y < heightWindows; y++) {
-      for (let x = 1; x < widthWindows; x++) {
-        // Skip some windows randomly for variety
-        if (Math.random() < 0.3) continue;
+    // Add windows to front and back, but with more aggressive culling
+    for (let y = 1; y < heightWindows; y += 2) { // Skip every other row
+      for (let x = 1; x < widthWindows; x += 1) {
+        // Skip more windows randomly for variety and performance
+        if (Math.random() < 0.6) continue; // 60% chance to skip (was 30%)
         
         const windowX = (x * windowSpacing) - (width / 2) + (windowSpacing / 2);
         const windowY = (y * windowSpacing) - (height / 2) + (windowSpacing / 2);
         
-        // Front windows
+        // Front windows only - skip back windows for better performance
         const frontWindow = new THREE.Mesh(windowGeometry, windowMaterial);
         frontWindow.position.set(windowX, windowY, depth / 2 + 0.1);
         building.add(frontWindow);
-        
-        // Back windows
-        const backWindow = new THREE.Mesh(windowGeometry, windowMaterial);
-        backWindow.position.set(windowX, windowY, -depth / 2 - 0.1);
-        building.add(backWindow);
       }
     }
     
-    // Calculate windows for sides
-    const depthWindows = Math.floor(depth / windowSpacing) - 1;
+    // Calculate windows for sides with reduced density
+    const depthWindows = Math.min(Math.floor(depth / windowSpacing) - 1, 4); // Max 4 windows in depth
     
-    // Add windows to sides
-    for (let y = 1; y < heightWindows; y++) {
-      for (let z = 1; z < depthWindows; z++) {
-        // Skip some windows randomly
-        if (Math.random() < 0.3) continue;
+    // Skip side windows for distant/tall buildings to improve performance
+    if (height > 50) return;
+    
+    // Add windows to sides with more aggressive culling
+    for (let y = 1; y < heightWindows; y += 2) { // Skip every other row
+      for (let z = 1; z < depthWindows; z += 1) {
+        // Skip more windows randomly
+        if (Math.random() < 0.6) continue; // 60% chance to skip (was 30%)
         
         const windowZ = (z * windowSpacing) - (depth / 2) + (windowSpacing / 2);
         const windowY = (y * windowSpacing) - (height / 2) + (windowSpacing / 2);
         
-        // Left windows
+        // Left side windows only - skip right side for better performance
         const leftWindow = new THREE.Mesh(windowGeometry, windowMaterial);
         leftWindow.position.set(-width / 2 - 0.1, windowY, windowZ);
         leftWindow.rotation.y = Math.PI / 2;
         building.add(leftWindow);
-        
-        // Right windows
-        const rightWindow = new THREE.Mesh(windowGeometry, windowMaterial);
-        rightWindow.position.set(width / 2 + 0.1, windowY, windowZ);
-        rightWindow.rotation.y = Math.PI / 2;
-        building.add(rightWindow);
       }
     }
   }
