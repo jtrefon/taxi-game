@@ -364,135 +364,188 @@ class Game {
     // 1. Try spawning new NPCs
     this.npcSpawnTimer += deltaTime * 1000;
     if (this.npcSpawnTimer >= this.npcSpawnInterval && this.npcs.length < this.maxNPCs) {
-        console.log(`Attempting to spawn NPC. Current count: ${this.npcs.length}`); // Log spawn attempt
+        // console.log(`Attempting to spawn NPC. Current count: ${this.npcs.length}`); // Reduced logging
         this.npcSpawnTimer = 0;
         this.spawnNPC();
     }
 
     // 2. Update existing NPCs (movement, despawning, etc.)
     const playerPosition = this.playerVehicle.getPosition();
-    const despawnDistanceSq = 100 * 100; // Despawn if further than 100 units away
+    // Get rotation as Euler, then convert to Quaternion
+    const playerRotationEuler = this.playerVehicle.getRotation(); 
+    const playerQuaternion = new CANNON.Quaternion();
+    playerQuaternion.setFromEuler(playerRotationEuler.x, playerRotationEuler.y, playerRotationEuler.z, 'XYZ'); // Assuming XYZ order
+    
+    // Calculate player's forward direction
+    const playerForward = new CANNON.Vec3(0, 0, -1); // Base forward vector
+    playerQuaternion.vmult(playerForward, playerForward); // Rotate the vector by the quaternion
+    
+    playerForward.y = 0; // Project onto XZ plane
+    playerForward.normalize();
+    
+    const despawnDistanceSq = 150 * 150; // Increased despawn radius slightly
+    const behindDespawnDelay = 4.0; // Despawn after 4 seconds behind player
 
     for (let i = this.npcs.length - 1; i >= 0; i--) {
         const npcGroup = this.npcs[i];
         
-        // Skip if NPC is not properly initialized
         if (!npcGroup || !npcGroup.userData || !npcGroup.userData.npc) {
             console.warn(`Skipping invalid NPC at index ${i}`);
             this.despawnNPC(i);
             continue;
         }
-        
         const npcData = npcGroup.userData.npc;
-        
-        // Skip if physics body is missing
         if (!npcData.body) {
             console.warn(`NPC at index ${i} has no physics body`);
             this.despawnNPC(i);
             continue;
         }
-        
         const npcBody = npcData.body;
 
         // Update mesh position from physics body
         npcGroup.position.copy(npcBody.position);
         npcGroup.quaternion.copy(npcBody.quaternion);
 
-        // Simple walking behavior: move towards target, set new target if reached
+        // Simple walking behavior (existing code)
         if (npcData.state === 'walking') {
+           // ... (keep existing walking logic) ...
             if (!npcData.targetPosition || npcBody.position.distanceTo(npcData.targetPosition) < 1.0) {
                 // Find a new random target point on a sidewalk near the NPC
-                npcData.targetPosition = this.findRandomSidewalkPointNear(npcBody.position, 10);
+                npcData.targetPosition = this.findRandomSidewalkPointNear(npcBody.position, 10); // Keep this simple for now
             }
 
             if (npcData.targetPosition) {
-                // CANNON.Vec3 doesn't have .clone(), so manually create a direction vector
-                const direction = new CANNON.Vec3(
-                    npcData.targetPosition.x - npcBody.position.x,
-                    0, // Keep Y movement at zero to stay level
-                    npcData.targetPosition.z - npcBody.position.z
-                );
-                
-                // Normalize vector (convert to unit vector)
-                const length = Math.sqrt(direction.x * direction.x + direction.z * direction.z);
-                if (length > 0) {
-                    direction.x /= length;
-                    direction.z /= length;
-                
-                    // Scale by speed
-                    const force = new CANNON.Vec3(
-                        direction.x * npcData.speed * 50,
-                        0,
-                        direction.z * npcData.speed * 50
-                    );
-                
-                    // Apply force in the direction of the target
+                const direction = npcData.targetPosition.vsub(npcBody.position);
+                direction.y = 0; 
+                const length = direction.length();
+                if (length > 0.1) {
+                    direction.normalize();
+                    const force = direction.scale(npcData.speed * 50); // Use scale method
                     npcBody.applyForce(force, npcBody.position);
                     
-                    // Make NPC face the direction of movement
+                    // Face movement direction
                     const targetQuaternion = new THREE.Quaternion().setFromUnitVectors(
-                        new THREE.Vector3(0, 0, 1), // Default forward direction
-                        new THREE.Vector3(direction.x, 0, direction.z).normalize() // Target direction (horizontal plane)
+                        new THREE.Vector3(0, 0, 1),
+                        new THREE.Vector3(direction.x, 0, direction.z) // Use CANNON vector directly if needed
                     );
-                    npcBody.quaternion.slerp(targetQuaternion, 0.1, npcBody.quaternion); // Smooth rotation
-                }
+                    // Convert CANNON.Quaternion to THREE.Quaternion if needed or use direct slerp if available
+                    const currentQuatThree = new THREE.Quaternion(npcBody.quaternion.x, npcBody.quaternion.y, npcBody.quaternion.z, npcBody.quaternion.w);
+                    currentQuatThree.slerp(targetQuaternion, 0.1);
+                    npcBody.quaternion.copy(currentQuatThree); // Copy back to CANNON
+                 }
             }
         }
 
-        // 3. Despawn NPCs far from the player
-        const dx = npcBody.position.x - playerPosition.x;
-        const dz = npcBody.position.z - playerPosition.z;
-        const distanceSquared = dx * dx + dz * dz;
+        // 3. Despawn logic (Distance and Behind Player)
+        const vectorToNPC = npcBody.position.vsub(playerPosition);
+        const distanceSquared = vectorToNPC.lengthSquared();
         
+        // Despawn if too far
         if (distanceSquared > despawnDistanceSq) {
+            // console.log(`Despawning NPC ${i} due to distance.`);
             this.despawnNPC(i);
+            continue; // Skip further checks for this NPC
+        }
+
+        // Check if NPC is behind player
+        vectorToNPC.y = 0;
+        if (vectorToNPC.lengthSquared() > 0.1) {
+             vectorToNPC.normalize();
+             const dot = vectorToNPC.dot(playerForward);
+             
+             if (dot < -0.1) { // Check if significantly behind (dot product < 0)
+                 // NPC is behind
+                 if (npcData.timeBehindPlayer === undefined) {
+                     npcData.timeBehindPlayer = 0;
+                 }
+                 npcData.timeBehindPlayer += deltaTime;
+                 
+                 if (npcData.timeBehindPlayer >= behindDespawnDelay) {
+                    // console.log(`Despawning NPC ${i} for being behind player for too long.`);
+                    this.despawnNPC(i);
+                    continue; // Skip further checks
+                 }
+             } else {
+                 // NPC is not behind (or very close to side), reset timer
+                 npcData.timeBehindPlayer = 0;
+             }
+        } else {
+             // NPC is very close to player, reset timer
+             npcData.timeBehindPlayer = 0;
         }
     }
   }
 
   spawnNPC() {
       try {
-          // Get a random spawn point on a sidewalk from the map
           let spawnPoint = null;
+          const playerPosition = this.playerVehicle ? this.playerVehicle.getPosition() : new CANNON.Vec3(0, 0.5, 0);
+          // Get rotation as Euler, then convert to Quaternion
+          const playerRotationEuler = this.playerVehicle ? this.playerVehicle.getRotation() : {x: 0, y: 0, z: 0}; // Default Euler
+          const playerQuaternion = new CANNON.Quaternion();
+          playerQuaternion.setFromEuler(playerRotationEuler.x, playerRotationEuler.y, playerRotationEuler.z, 'XYZ'); // Assuming XYZ order
           
-          if (this.currentMap && typeof this.currentMap.getRandomSidewalkPoint === 'function') {
-              spawnPoint = this.currentMap.getRandomSidewalkPoint();
+          const spawnRadius = 150; 
+          const minSpawnRadius = 20; // Don't spawn NPCs too close
+          const fovAngle = Math.PI / 1.5; // Field of view angle (120 degrees)
+          
+          // Calculate player's forward direction (normalized)
+          const playerForward = new CANNON.Vec3(0, 0, -1); // Assuming -Z is forward initially
+          playerQuaternion.vmult(playerForward, playerForward); // Rotate the vector by the quaternion
+          
+          playerForward.y = 0; // Project onto XZ plane
+          playerForward.normalize();
+
+          // 1. Try finding a sidewalk point NEAR and AHEAD of the player
+          console.log("Attempting findRandomSidewalkPointNear player (FOV check).", playerForward);
+          spawnPoint = this.findRandomSidewalkPointNear(playerPosition, spawnRadius, playerForward, fovAngle);
+
+          // Validate spawn point distance and FOV again (findRandomSidewalkPointNear might return a fallback)
+          if (spawnPoint) {
+              const directionToPoint = spawnPoint.vsub(playerPosition);
+              const distanceSq = directionToPoint.lengthSquared();
+              directionToPoint.y = 0;
+              directionToPoint.normalize();
+              const dot = directionToPoint.dot(playerForward);
+              const angleToPoint = Math.acos(Math.max(-1, Math.min(1, dot)));
+              
+              // If the found point is too close, behind, outside FOV, or too far, try the fallback.
+              if (distanceSq < minSpawnRadius * minSpawnRadius || angleToPoint > fovAngle / 2 || distanceSq > spawnRadius * spawnRadius ) {
+                 console.log("Sidewalk point found by findRandomSidewalkPointNear was unsuitable (too close/far/behind). Resetting.");
+                 spawnPoint = null; // Invalidate the point, force fallback
+              }
           }
-          
-          // If no valid sidewalk point is found, use a fixed position near the center
+
+          // 2. If STILL no suitable point is found (e.g., map has no sidewalks, or none near/ahead),
+          //    generate a random point AHEAD of the player as a last resort.
           if (!spawnPoint) {
-              console.log("Using fixed spawn point as no sidewalk point was found");
+              console.warn('Could not find suitable sidewalk point ahead, generating random point ahead.');
+              let attempts = 0;
+              do {
+                   const angleOffset = (Math.random() - 0.5) * fovAngle; // Random angle within FOV
+                   const forwardAngle = Math.atan2(playerForward.z, playerForward.x); // Base forward angle
+                   const spawnAngle = forwardAngle + angleOffset;
+                   const distance = minSpawnRadius + Math.random() * (spawnRadius - minSpawnRadius); // Random distance
+                   
+                   spawnPoint = new CANNON.Vec3(
+                       playerPosition.x + Math.cos(spawnAngle) * distance,
+                       playerPosition.y, // Keep Y level
+                       playerPosition.z + Math.sin(spawnAngle) * distance
+                   );
+                   attempts++;
+              } while (attempts < 10 && !spawnPoint); // Should generate a point quickly
               
-              // Get the road network dimensions from map, or use default values
-              const mapWidth = this.currentMap && typeof this.currentMap.gridWidth === 'function' 
-                  ? this.currentMap.gridWidth() * (this.currentMap.blockSize || 50) 
-                  : 200;
-              
-              const mapHeight = this.currentMap && typeof this.currentMap.gridHeight === 'function'
-                  ? this.currentMap.gridHeight() * (this.currentMap.blockSize || 50)
-                  : 200;
-              
-              // Create fixed points around the center of the map, near roads
-              const fixedPositions = [
-                  new CANNON.Vec3(-20, 0.5, -20),  // Southwest of center
-                  new CANNON.Vec3(20, 0.5, -20),   // Southeast of center
-                  new CANNON.Vec3(-20, 0.5, 20),   // Northwest of center
-                  new CANNON.Vec3(20, 0.5, 20),    // Northeast of center
-                  new CANNON.Vec3(0, 0.5, 30),     // North of center
-                  new CANNON.Vec3(0, 0.5, -30),    // South of center
-                  new CANNON.Vec3(30, 0.5, 0),     // East of center
-                  new CANNON.Vec3(-30, 0.5, 0)     // West of center
-              ];
-              
-              // Choose a random position from the fixed positions
-              spawnPoint = fixedPositions[Math.floor(Math.random() * fixedPositions.length)];
+              if (!spawnPoint) { // Absolute fallback if generation fails
+                   console.error("Failed to generate even a fallback spawn point ahead. Spawning at default.")
+                   spawnPoint = new CANNON.Vec3(playerPosition.x, playerPosition.y, playerPosition.z - minSpawnRadius);
+              }
           }
 
           // Create the NPC using the factory
           const npc = this.npcFactory.createNPC(spawnPoint.x, spawnPoint.z);
           if (npc) {
               this.npcs.push(npc);
-              console.log(`NPC created successfully! Total NPCs: ${this.npcs.length}`);
+              console.log(`NPC created ahead of player! Total NPCs: ${this.npcs.length}`);
           } else {
                console.error('NPCFactory failed to create NPC object.');
           }
@@ -534,39 +587,87 @@ class Game {
       }
   }
   
-  findRandomSidewalkPointNear(position, radius) {
+  findRandomSidewalkPointNear(position, radius, playerForward = null, fovAngle = Math.PI) {
      if (!this.currentMap || typeof this.currentMap.getRandomSidewalkPoint !== 'function') {
-          // If no sidewalk points are available, create a new random point near current position
-          const angle = Math.random() * Math.PI * 2;
-          const distance = Math.random() * radius;
-          return new CANNON.Vec3(
-              position.x + Math.cos(angle) * distance,
-              position.y,
-              position.z + Math.sin(angle) * distance
-          );
+          // Generate a random point near position, optionally respecting FOV
+          let spawnPoint = null;
+          for (let attempt = 0; attempt < 10; attempt++) {
+              const angle = Math.random() * Math.PI * 2;
+              const distance = Math.random() * radius;
+              const potentialPoint = new CANNON.Vec3(
+                  position.x + Math.cos(angle) * distance,
+                  position.y,
+                  position.z + Math.sin(angle) * distance
+              );
+              
+              // Check FOV if playerForward is provided
+              if (playerForward) {
+                  const directionToPoint = potentialPoint.vsub(position); // Vector from player to point
+                  directionToPoint.y = 0; // Ignore vertical difference
+                  if (directionToPoint.lengthSquared() > 0.1) { // Avoid zero vector
+                      directionToPoint.normalize();
+                      const dot = directionToPoint.dot(playerForward);
+                      const angleToPoint = Math.acos(Math.max(-1, Math.min(1, dot))); // Clamp dot product for acos
+                      if (angleToPoint <= fovAngle / 2) {
+                          spawnPoint = potentialPoint;
+                          break; // Found a point within FOV
+                      }
+                  } else {
+                       spawnPoint = potentialPoint; // Point is very close, consider it in FOV
+                       break;
+                  }
+              } else {
+                   spawnPoint = potentialPoint; // No FOV check needed
+                   break;
+              }
+          }
+          if (!spawnPoint) { // If no point in FOV found after attempts, generate one last time without FOV
+              const angle = Math.random() * Math.PI * 2;
+              const distance = Math.random() * radius;
+              spawnPoint = new CANNON.Vec3(position.x + Math.cos(angle) * distance, position.y, position.z + Math.sin(angle) * distance);
+          }
+          return spawnPoint;
      }
      
-     // Simple approach: try a few times to find a point within the radius
-     for (let i = 0; i < 5; i++) {
+     // Increase attempts to find a sidewalk point within the radius AND FOV
+     for (let i = 0; i < 25; i++) { // Increased attempts to 25
           const point = this.currentMap.getRandomSidewalkPoint();
           if (point) {
-              // Calculate distance manually since CANNON.Vec3 doesn't have a distanceTo method
               const dx = point.x - position.x;
               const dz = point.z - position.z;
-              const distance = Math.sqrt(dx * dx + dz * dz);
+              const distanceSq = dx * dx + dz * dz;
               
-              if (distance <= radius) {
-                  return point;
+              // Check if within radius
+              if (distanceSq <= radius * radius) {
+                   // Check FOV if playerForward is provided
+                   if (playerForward) {
+                       const directionToPoint = point.vsub(position); // Vector from player to point
+                       directionToPoint.y = 0; // Ignore vertical difference
+                       if (directionToPoint.lengthSquared() > 0.1) { 
+                           directionToPoint.normalize();
+                           const dot = directionToPoint.dot(playerForward);
+                           const angleToPoint = Math.acos(Math.max(-1, Math.min(1, dot))); // Clamp dot product
+                           if (angleToPoint <= fovAngle / 2) {
+                               return point; // Found a point within radius and FOV
+                           }
+                       } else {
+                            return point; // Point very close, consider it in FOV
+                       }
+                   } else {
+                       return point; // Found a point within radius, no FOV check needed
+                   }
               }
           }
      }
      
-     // If failed, just return any random point, or create a new one if nothing available
+     // If failed after increased attempts, return any random point or fallback (without FOV check for simplicity)
      const fallbackPoint = this.currentMap.getRandomSidewalkPoint();
      if (fallbackPoint) {
+         console.log("findRandomSidewalkPointNear couldn't find a point nearby/ahead, returning any sidewalk point.");
          return fallbackPoint;
      } else {
-         // Create a random point near the current position as last resort
+         // Use the initial fallback logic (generates random point near player)
+         console.warn("findRandomSidewalkPointNear found no sidewalk points, generating random point near player.");
          const angle = Math.random() * Math.PI * 2;
          const distance = Math.random() * radius;
          return new CANNON.Vec3(
