@@ -389,6 +389,41 @@ export class Vehicle {
   }
   
   getSpeed() {
-    return this.speed;
+    // Calculate speed based on chassis body velocity magnitude
+    const velocity = this.chassisBody.velocity;
+    // Convert from physics units/s to mph (approximate)
+    return velocity.length() * 2.237; // Basic conversion factor
+  }
+
+  isOverturned() {
+    // Check if the vehicle is overturned
+    const upVector = new THREE.Vector3(0, 1, 0);
+    // Apply the chassis quaternion to the up vector to get world orientation
+    upVector.applyQuaternion(this.chassisBody.quaternion);
+    // If the world Y component is less than a threshold (e.g., 0.3), it's likely overturned
+    return upVector.y < 0.3;
+  }
+
+  resetState() {
+    // Reset position slightly above current XZ
+    const currentPos = this.chassisBody.position;
+    this.chassisBody.position.set(currentPos.x, currentPos.y + 2, currentPos.z); // Reset 2 units higher
+
+    // Reset orientation to upright
+    this.chassisBody.quaternion.set(0, 0, 0, 1);
+
+    // Reset velocities
+    this.chassisBody.velocity.set(0, 0, 0);
+    this.chassisBody.angularVelocity.set(0, 0, 0);
+
+    // Reset vehicle controls state (important!)
+    this.vehicle.applyEngineForce(0, 0);
+    this.vehicle.applyEngineForce(0, 1);
+    this.vehicle.applyEngineForce(0, 2);
+    this.vehicle.applyEngineForce(0, 3);
+    this.vehicle.setSteeringValue(0, 0);
+    this.vehicle.setSteeringValue(0, 1);
+
+    console.log("Vehicle state reset");
   }
 } 

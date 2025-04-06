@@ -17,6 +17,7 @@ class Game {
     this.speedElement = document.getElementById('speed');
     this.moneyElement = document.getElementById('money');
     this.fpsElement = document.getElementById('fps-counter'); // Get FPS element
+    this.resetTimerElement = document.getElementById('reset-timer'); // Get Reset Timer element
     
     // Game state
     this.money = 0;
@@ -45,6 +46,11 @@ class Game {
     this.currentCameraYaw = 0;      // Camera's current horizontal world angle
     this.targetCameraYaw = 0;       // Target camera yaw (matches vehicle)
     this.turnSmoothFactor = 0.15;   // How quickly camera base follows turns (higher = faster)
+    
+    // Vehicle Reset State
+    this.isVehicleOverturned = false;
+    this.overturnTimer = 0;
+    this.resetDelay = 3000; // 3 seconds in milliseconds
     
     // Traffic Light State
     this.trafficLights = []; // Will hold references from BaseMap
@@ -339,6 +345,50 @@ class Game {
     }
   }
   
+  updateVehicleReset(deltaTime) {
+    if (!this.playerVehicle) return;
+
+    if (this.playerVehicle.isOverturned()) {
+      if (!this.isVehicleOverturned) {
+        // Just overturned, start timer
+        this.isVehicleOverturned = true;
+        this.overturnTimer = 0;
+        if (this.resetTimerElement) {
+          this.resetTimerElement.style.display = 'block';
+          this.resetTimerElement.textContent = `Resetting in 3...`;
+        }
+        console.log("Vehicle overturned, starting reset timer.");
+      } else {
+        // Already overturned, increment timer
+        this.overturnTimer += deltaTime * 1000;
+        const timeLeft = Math.ceil((this.resetDelay - this.overturnTimer) / 1000);
+        if (this.resetTimerElement) {
+          this.resetTimerElement.textContent = `Resetting in ${timeLeft}...`;
+        }
+
+        if (this.overturnTimer >= this.resetDelay) {
+          // Timer finished, reset vehicle
+          this.playerVehicle.resetState();
+          this.isVehicleOverturned = false;
+          this.overturnTimer = 0;
+          if (this.resetTimerElement) {
+            this.resetTimerElement.style.display = 'none';
+          }
+        }
+      }
+    } else {
+      // Not overturned, reset state if it was previously
+      if (this.isVehicleOverturned) {
+        this.isVehicleOverturned = false;
+        this.overturnTimer = 0;
+        if (this.resetTimerElement) {
+          this.resetTimerElement.style.display = 'none';
+        }
+        console.log("Vehicle righted itself, cancelling reset.");
+      }
+    }
+  }
+  
   update(deltaTime) {
     // Update physics world
     this.physicsWorld.step(1 / 60, deltaTime, 3);
@@ -350,6 +400,9 @@ class Game {
     if (this.playerVehicle) {
       this.playerVehicle.update(deltaTime, this.input);
     }
+    
+    // Check and handle vehicle reset
+    this.updateVehicleReset(deltaTime);
     
     // Update camera
     this.updateCamera();
