@@ -404,6 +404,10 @@ class Game {
         }
         const npcBody = npcData.body;
         const headMesh = npcData.headMesh; // Get the head mesh reference
+        const leftLegPivot = npcData.leftLegPivot;
+        const rightLegPivot = npcData.rightLegPivot;
+        const leftArmPivot = npcData.leftArmPivot;
+        const rightArmPivot = npcData.rightArmPivot;
 
         // Update mesh position from physics body
         npcGroup.position.copy(npcBody.position);
@@ -420,11 +424,11 @@ class Game {
         const distanceToPlayerSq = vectorToPlayer.lengthSquared();
         let shouldLookAtPlayer = false;
 
-        if (distanceToPlayerSq <= headTurnRadiusSq && headMesh) {
+        if (distanceToPlayerSq <= headTurnRadiusSq && headMesh) { // Check headMesh exists
             shouldLookAtPlayer = true;
             // Calculate direction from head to player (use world positions)
             const headWorldPos = new THREE.Vector3();
-            headMesh.getWorldPosition(headWorldPos);
+            headMesh.getWorldPosition(headWorldPos); // Use headMesh world position
             // Use the original THREE.Vector3 position for Three.js calculations
             const playerWorldPos = playerPosition.clone(); 
             const lookAtDir = playerWorldPos.sub(headWorldPos).normalize();
@@ -449,37 +453,96 @@ class Game {
         }
 
         // Smoothly rotate the head towards the target (or back to default)
-        if (headMesh) {
-            headMesh.quaternion.slerp(targetHeadQuaternion, headTurnSpeed);
+        if (headMesh) { // Check headMesh exists
+            headMesh.quaternion.slerp(targetHeadQuaternion, headTurnSpeed); // Apply rotation to headMesh
         }
         // --- End Head Turning Logic ---
 
+        // --- Walking Animation Logic ---
+        const walkSpeedFactor = 15; // Adjust to match visual speed
+        const walkAmplitude = Math.PI / 6; // Swing angle (30 degrees)
+        const armAmplitude = Math.PI / 8; // Smaller swing for arms
+        let currentVelocity = npcBody.velocity.length();
+        let targetLeftLegAngle = 0;
+        let targetRightLegAngle = 0;
+        let targetLeftArmAngle = 0;
+        let targetRightArmAngle = 0;
+        const animationSmoothFactor = 0.15; // How quickly limbs move to target angle
+
+        if (npcData.state === 'walking' && currentVelocity > 0.1 && leftLegPivot && rightLegPivot) { // Check velocity & PIVOT refs
+            // Update walk phase based on speed and time
+            npcData.walkPhase = (npcData.walkPhase + currentVelocity * walkSpeedFactor * deltaTime) % (Math.PI * 2);
+
+            // Calculate TARGET leg/arm rotations 
+            targetLeftLegAngle = Math.sin(npcData.walkPhase) * walkAmplitude;
+            targetRightLegAngle = Math.sin(npcData.walkPhase + Math.PI) * walkAmplitude; // Opposite phase
+            if (leftArmPivot && rightArmPivot) {
+                targetLeftArmAngle = Math.sin(npcData.walkPhase + Math.PI) * armAmplitude;
+                targetRightArmAngle = Math.sin(npcData.walkPhase) * armAmplitude;
+            }
+        } 
+        // Else block is removed: if not walking, target angles remain 0
+        
+        // Always smoothly interpolate towards the target angles
+        if (leftLegPivot && rightLegPivot) {
+             leftLegPivot.rotation.x += (targetLeftLegAngle - leftLegPivot.rotation.x) * animationSmoothFactor;
+             rightLegPivot.rotation.x += (targetRightLegAngle - rightLegPivot.rotation.x) * animationSmoothFactor;
+        }
+        if (leftArmPivot && rightArmPivot) {
+             leftArmPivot.rotation.x += (targetLeftArmAngle - leftArmPivot.rotation.x) * animationSmoothFactor;
+             rightArmPivot.rotation.x += (targetRightArmAngle - rightArmPivot.rotation.x) * animationSmoothFactor;
+        }
+        // --- End Walking Animation Logic ---
+
         // Simple walking behavior (existing code)
         if (npcData.state === 'walking') {
-           // ... (keep existing walking logic) ...
-            if (!npcData.targetPosition || npcBody.position.distanceTo(npcData.targetPosition) < 1.0) {
-                // Find a new random target point on a sidewalk near the NPC
-                npcData.targetPosition = this.findRandomSidewalkPointNear(npcBody.position, 10); // Keep this simple for now
+            const needsNewTarget = (!npcData.targetPosition || npcBody.position.distanceTo(npcData.targetPosition) < 1.0);
+            // console.log(`NPC ${i} needs new target: ${needsNewTarget}`); // Debug log
+
+            if (needsNewTarget) {
+                // Find a new random target point on a sidewalk somewhat ahead of the NPC
+                const npcForward = new CANNON.Vec3(0, 0, 1); // Base forward in local space
+                npcBody.quaternion.vmult(npcForward, npcForward); // Rotate to world space
+                npcForward.y = 0; // Project onto horizontal plane
+                npcForward.normalize();
+                
+                const targetSearchRadius = 50; // Look further for next target
+                const targetFovAngle = Math.PI; // Wide forward arc (180 degrees)
+                
+                npcData.targetPosition = this.findRandomSidewalkPointNear(
+                    npcBody.position, 
+                    targetSearchRadius, 
+                    npcForward, 
+                    targetFovAngle
+                ); 
+                console.log(`NPC ${i} setting new target:`, npcData.targetPosition); // Log the newly set target
             }
 
             if (npcData.targetPosition) {
+                // console.log(`NPC ${i} moving towards:`, npcData.targetPosition, `Current pos:`, npcBody.position); // Debug log
                 const direction = npcData.targetPosition.vsub(npcBody.position);
                 direction.y = 0; 
                 const length = direction.length();
                 if (length > 0.1) {
                     direction.normalize();
-                    const force = direction.scale(npcData.speed * 50); // Use scale method
-                    npcBody.applyForce(force, npcBody.position);
+                    // Set velocity directly instead of applying force
+                    const desiredVelocity = direction.scale(npcData.speed); // Use speed directly from factory
+                    npcBody.velocity.x = desiredVelocity.x;
+                    npcBody.velocity.z = desiredVelocity.z;
+                    // Keep Y velocity affected by gravity (or set to 0 if they shouldn't fall)
+                    // npcBody.velocity.y = 0; // Uncomment this to prevent falling/bouncing
                     
-                    // Face movement direction
+                    // console.log(`NPC ${i} applying force:`, force, `Current velocity:`, npcBody.velocity); // Debug log
+                    // npcBody.applyForce(force, npcBody.position);
+                    
+                    // --- Face movement direction (Rotation) ---
                     const targetQuaternion = new THREE.Quaternion().setFromUnitVectors(
                         new THREE.Vector3(0, 0, 1),
                         new THREE.Vector3(direction.x, 0, direction.z) // Use CANNON vector directly if needed
                     );
-                    // Convert CANNON.Quaternion to THREE.Quaternion if needed or use direct slerp if available
-                    const currentQuatThree = new THREE.Quaternion(npcBody.quaternion.x, npcBody.quaternion.y, npcBody.quaternion.z, npcBody.quaternion.w);
-                    currentQuatThree.slerp(targetQuaternion, 0.1);
-                    npcBody.quaternion.copy(currentQuatThree); // Copy back to CANNON
+                    // Directly slerp the physics body quaternion
+                    npcBody.quaternion.slerp(targetQuaternion, 0.1, npcBody.quaternion); 
+                    // --- End Rotation ---
                  }
             }
         }

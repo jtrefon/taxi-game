@@ -43,31 +43,53 @@ export class NPCFactory {
         // --- Create Body Parts ---
         const head = this._createHead(textureOptions);
         const torso = this._createTorso(textureOptions);
-        const leftLeg = this._createLeg(textureOptions);
-        const rightLeg = this._createLeg(textureOptions);
-        const leftArm = this._createArm(textureOptions);
-        const rightArm = this._createArm(textureOptions);
-
-        // --- Position Body Parts ---
-        head.position.y = this.torsoHeight / 2 + this.headSize / 2; // Head on top of torso
         
-        leftLeg.position.x = -this.torsoWidth / 4;
-        leftLeg.position.y = -this.torsoHeight / 2 - this.legHeight / 2; // Legs below torso
-        rightLeg.position.x = this.torsoWidth / 4;
-        rightLeg.position.y = -this.torsoHeight / 2 - this.legHeight / 2;
+        // Create pivot points for limbs
+        const leftLegPivot = new THREE.Group();
+        const rightLegPivot = new THREE.Group();
+        const leftArmPivot = new THREE.Group();
+        const rightArmPivot = new THREE.Group();
 
-        leftArm.position.x = -this.torsoWidth / 2 - this.armWidth / 2;
-        leftArm.position.y = 0; // Arms centered vertically with torso
-        rightArm.position.x = this.torsoWidth / 2 + this.armWidth / 2;
-        rightArm.position.y = 0;
+        // Create limb meshes
+        const leftLegMesh = this._createLeg(textureOptions);
+        const rightLegMesh = this._createLeg(textureOptions);
+        const leftArmMesh = this._createArm(textureOptions);
+        const rightArmMesh = this._createArm(textureOptions);
 
-        // Add parts to the group
+        // --- Position Pivots relative to the main group's origin (torso center) ---
+        head.position.y = this.torsoHeight / 2 + this.headSize / 2; 
+        
+        const hipOffsetY = -this.torsoHeight / 2; // Vertical offset for hips from torso center
+        const hipOffsetX = this.torsoWidth / 4;   // Horizontal offset for hips
+        leftLegPivot.position.set(-hipOffsetX, hipOffsetY, 0);
+        rightLegPivot.position.set(hipOffsetX, hipOffsetY, 0);
+
+        const shoulderOffsetY = this.torsoHeight / 2 - this.armWidth / 2; // Adjust based on desired shoulder height
+        const shoulderOffsetX = this.torsoWidth / 2 + this.armWidth / 2;
+        leftArmPivot.position.set(-shoulderOffsetX, shoulderOffsetY, 0);
+        rightArmPivot.position.set(shoulderOffsetX, shoulderOffsetY, 0);
+
+        // --- Position Limb Meshes relative to their Pivots ---
+        // Position top of the limb at the pivot point
+        leftLegMesh.position.y = -this.legHeight / 2; 
+        rightLegMesh.position.y = -this.legHeight / 2;
+        leftArmMesh.position.y = -this.armHeight / 2; 
+        rightArmMesh.position.y = -this.armHeight / 2;
+
+        // --- Assemble Hierarchy ---
+        // Add meshes to their pivots
+        leftLegPivot.add(leftLegMesh);
+        rightLegPivot.add(rightLegMesh);
+        leftArmPivot.add(leftArmMesh);
+        rightArmPivot.add(rightArmMesh);
+
+        // Add head, torso, and pivots to the main group
         npcGroup.add(head);
         npcGroup.add(torso);
-        npcGroup.add(leftLeg);
-        npcGroup.add(rightLeg);
-        npcGroup.add(leftArm);
-        npcGroup.add(rightArm);
+        npcGroup.add(leftLegPivot);
+        npcGroup.add(rightLegPivot);
+        npcGroup.add(leftArmPivot);
+        npcGroup.add(rightArmPivot);
 
         this.scene.add(npcGroup);
 
@@ -86,8 +108,8 @@ export class NPCFactory {
             mass: 50, // Give NPCs some mass
             position: new CANNON.Vec3(x, totalHeight / 2, z), // Physics body centered
             shape: shape,
-            linearDamping: 0.9, // Dampen movement
-            angularDamping: 0.9,
+            linearDamping: 0.1, // Significantly reduced damping
+            angularDamping: 0.5, // Also reduced angular damping
             fixedRotation: true // Prevent falling over
         });
         
@@ -100,11 +122,17 @@ export class NPCFactory {
         npcGroup.userData.physicsBody = body;
         body.userData = { mesh: npcGroup }; // Link back for updates
 
-        // Store NPC data for animation/AI
+        // Store NPC data for animation/AI - store PIVOTS now
         npcGroup.userData.npc = {
-            state: 'walking',
-            speed: 0.5 + Math.random() * 1.0, // Random walking speed
-            targetPosition: null, // Will be set by AI/pathfinding
+            headMesh: head, 
+            leftLegPivot: leftLegPivot,      // Store reference to left leg pivot
+            rightLegPivot: rightLegPivot,     // Store reference to right leg pivot
+            leftArmPivot: leftArmPivot,      // Store reference to left arm pivot
+            rightArmPivot: rightArmPivot,     // Store reference to right arm pivot
+            state: 'walking', 
+            speed: 2 + Math.random() * 3, // Random walking speed (2 to 5)
+            targetPosition: null, 
+            walkPhase: Math.random() * Math.PI * 2, 
             body: body
         };
 
@@ -113,10 +141,11 @@ export class NPCFactory {
 
     _createHead(texOptions) {
         const geometry = new THREE.BoxGeometry(this.headSize, this.headSize, this.headSize);
-        const material = new THREE.MeshStandardMaterial({
-            map: this.textureService.getNPCTexture('head', texOptions)
-        });
-        return new THREE.Mesh(geometry, material);
+        // Get the array of materials for the head faces
+        const materials = this.textureService.getHeadMaterials(texOptions);
+        
+        // Assign the array of materials to the mesh
+        return new THREE.Mesh(geometry, materials);
     }
 
     _createTorso(texOptions) {
