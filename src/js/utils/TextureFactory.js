@@ -23,6 +23,11 @@ export class TextureFactory {
     this.createOfficeFacades(Math.ceil(count * 0.3), resolution);
     this.createResidentialFacades(Math.ceil(count * 0.4), resolution);
     
+    // Create road and nature textures
+    this.createRoadTextures(3, resolution);
+    this.createTreeTextures(4, resolution);
+    this.createGrassTextures(3, resolution);
+    
     return this.textureCache;
   }
 
@@ -58,6 +63,37 @@ export class TextureFactory {
     this.lastUsedIndex.set(positionKey, newIndex);
     
     return this.textureCache.get(availableTextures[newIndex]);
+  }
+
+  /**
+   * Get a texture for roads, trees, or grass
+   * @param {string} type - Type of texture ('road', 'tree', 'grass')
+   * @param {string} variant - Specific variant if needed ('road_with_lines', 'road_with_crossing', etc.)
+   * @returns {THREE.Texture} A texture for the specified element
+   */
+  getEnvironmentTexture(type, variant = null) {
+    let availableTextures;
+    
+    if (variant) {
+      // Try to get the specific variant
+      const specificKey = `${type}_${variant}`;
+      if (this.textureCache.has(specificKey)) {
+        return this.textureCache.get(specificKey);
+      }
+    }
+    
+    // Get all textures of the requested type
+    availableTextures = Array.from(this.textureCache.keys())
+      .filter(key => key.startsWith(type));
+    
+    if (availableTextures.length === 0) {
+      console.warn('No textures available for type:', type);
+      return null;
+    }
+    
+    // Return a random texture of the requested type
+    const randomIndex = Math.floor(Math.random() * availableTextures.length);
+    return this.textureCache.get(availableTextures[randomIndex]);
   }
 
   /**
@@ -352,6 +388,688 @@ export class TextureFactory {
       texture.repeat.set(1, 1);
       
       this.textureCache.set(textureKey, texture);
+    }
+  }
+
+  /**
+   * Create road textures with lanes, markings, and variations
+   * @param {number} count - Number of unique textures to generate
+   * @param {number} resolution - Texture resolution (width/height)
+   */
+  createRoadTextures(count, resolution) {
+    const variants = ['basic', 'with_lines', 'with_crossing'];
+    
+    for (let i = 0; i < count; i++) {
+      const variant = variants[i % variants.length];
+      const textureKey = `road_${variant}`;
+      const canvas = document.createElement('canvas');
+      canvas.width = resolution;
+      canvas.height = resolution;
+      const ctx = canvas.getContext('2d');
+      
+      // Base asphalt color with slight variations
+      const baseGray = 50 + Math.floor(Math.random() * 10);
+      ctx.fillStyle = `rgb(${baseGray},${baseGray},${baseGray + 5})`;
+      ctx.fillRect(0, 0, resolution, resolution);
+      
+      // Add asphalt texture/grain
+      this.addAsphaltTexture(ctx, resolution);
+      
+      // Add road features based on variant
+      switch (variant) {
+        case 'basic':
+          // Simple asphalt with subtle texture
+          break;
+          
+        case 'with_lines':
+          // Road with lane lines
+          this.addRoadLines(ctx, resolution);
+          break;
+          
+        case 'with_crossing':
+          // Road with pedestrian crossing
+          this.addPedestrianCrossing(ctx, resolution);
+          break;
+      }
+      
+      // Create texture from canvas
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      texture.repeat.set(1, 1);
+      
+      this.textureCache.set(textureKey, texture);
+    }
+    
+    // Create sidewalk texture
+    this.createSidewalkTexture(resolution);
+  }
+
+  /**
+   * Create a sidewalk texture
+   * @param {number} resolution - Texture resolution
+   */
+  createSidewalkTexture(resolution) {
+    const canvas = document.createElement('canvas');
+    canvas.width = resolution;
+    canvas.height = resolution;
+    const ctx = canvas.getContext('2d');
+    
+    // Base concrete color
+    const baseGray = 160 + Math.floor(Math.random() * 20);
+    ctx.fillStyle = `rgb(${baseGray},${baseGray},${baseGray})`;
+    ctx.fillRect(0, 0, resolution, resolution);
+    
+    // Add concrete tile pattern
+    const tileSize = resolution / 8;
+    ctx.strokeStyle = `rgba(120,120,120,0.5)`;
+    ctx.lineWidth = 2;
+    
+    // Horizontal lines
+    for (let y = 0; y <= resolution; y += tileSize) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(resolution, y);
+      ctx.stroke();
+    }
+    
+    // Vertical lines
+    for (let x = 0; x <= resolution; x += tileSize) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, resolution);
+      ctx.stroke();
+    }
+    
+    // Add subtle texture variations
+    this.addConcreteTexture(ctx, resolution);
+    
+    // Create texture from canvas
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(1, 1);
+    
+    this.textureCache.set('sidewalk', texture);
+  }
+
+  /**
+   * Add asphalt texture/noise to the canvas
+   * @param {CanvasRenderingContext2D} ctx - Canvas context
+   * @param {number} resolution - Texture resolution
+   */
+  addAsphaltTexture(ctx, resolution) {
+    // Add noise and subtle cracks to simulate asphalt
+    const pixelSize = 2;
+    for (let y = 0; y < resolution; y += pixelSize) {
+      for (let x = 0; x < resolution; x += pixelSize) {
+        const noise = Math.random() * 15 - 5;
+        const alpha = Math.random() * 0.05 + 0.05;
+        ctx.fillStyle = `rgba(0,0,0,${alpha})`;
+        ctx.fillRect(x, y, pixelSize, pixelSize);
+        
+        // Occasionally add lighter specs for aggregate in asphalt
+        if (Math.random() < 0.1) {
+          ctx.fillStyle = `rgba(150,150,150,0.1)`;
+          ctx.fillRect(x, y, pixelSize, pixelSize);
+        }
+      }
+    }
+    
+    // Add some cracks/imperfections
+    for (let i = 0; i < 10; i++) {
+      const startX = Math.random() * resolution;
+      const startY = Math.random() * resolution;
+      const length = 10 + Math.random() * 30;
+      const angle = Math.random() * Math.PI * 2;
+      
+      ctx.strokeStyle = `rgba(20,20,20,0.2)`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(
+        startX + Math.cos(angle) * length,
+        startY + Math.sin(angle) * length
+      );
+      ctx.stroke();
+    }
+  }
+
+  /**
+   * Add concrete texture/noise to the canvas
+   * @param {CanvasRenderingContext2D} ctx - Canvas context
+   * @param {number} resolution - Texture resolution
+   */
+  addConcreteTexture(ctx, resolution) {
+    // Add noise to simulate concrete texture
+    const pixelSize = 2;
+    for (let y = 0; y < resolution; y += pixelSize) {
+      for (let x = 0; x < resolution; x += pixelSize) {
+        const noise = Math.random() * 10 - 5;
+        const alpha = Math.random() * 0.03 + 0.02;
+        ctx.fillStyle = `rgba(0,0,0,${alpha})`;
+        ctx.fillRect(x, y, pixelSize, pixelSize);
+      }
+    }
+    
+    // Add small cracks and imperfections
+    for (let i = 0; i < 20; i++) {
+      const startX = Math.random() * resolution;
+      const startY = Math.random() * resolution;
+      const length = 5 + Math.random() * 15;
+      const angle = Math.random() * Math.PI * 2;
+      
+      ctx.strokeStyle = `rgba(100,100,100,0.2)`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(
+        startX + Math.cos(angle) * length,
+        startY + Math.sin(angle) * length
+      );
+      ctx.stroke();
+    }
+  }
+
+  /**
+   * Add road lines to the canvas
+   * @param {CanvasRenderingContext2D} ctx - Canvas context
+   * @param {number} resolution - Texture resolution
+   */
+  addRoadLines(ctx, resolution) {
+    // Center line (solid or dashed)
+    const isDashed = Math.random() < 0.5;
+    const lineWidth = resolution * 0.02;
+    
+    ctx.fillStyle = `rgb(255,255,255)`;
+    
+    if (isDashed) {
+      // Dashed center line
+      const dashLength = resolution * 0.1;
+      const gapLength = resolution * 0.05;
+      
+      for (let y = 0; y < resolution; y += dashLength + gapLength) {
+        ctx.fillRect(
+          resolution / 2 - lineWidth / 2,
+          y,
+          lineWidth,
+          dashLength
+        );
+      }
+    } else {
+      // Solid center line
+      ctx.fillRect(
+        resolution / 2 - lineWidth / 2,
+        0,
+        lineWidth,
+        resolution
+      );
+    }
+    
+    // Lane edge lines
+    ctx.fillRect(
+      resolution * 0.1,
+      0,
+      resolution * 0.01,
+      resolution
+    );
+    
+    ctx.fillRect(
+      resolution * 0.9 - resolution * 0.01,
+      0,
+      resolution * 0.01,
+      resolution
+    );
+  }
+
+  /**
+   * Add pedestrian crossing to the canvas
+   * @param {CanvasRenderingContext2D} ctx - Canvas context
+   * @param {number} resolution - Texture resolution
+   */
+  addPedestrianCrossing(ctx, resolution) {
+    // Add center line first
+    this.addRoadLines(ctx, resolution);
+    
+    // Add zebra crossing
+    const stripeCount = 6;
+    const stripeWidth = resolution * 0.6;
+    const stripeHeight = resolution * 0.12;
+    const startX = (resolution - stripeWidth) / 2;
+    
+    ctx.fillStyle = `rgb(255,255,255)`;
+    
+    for (let i = 0; i < stripeCount; i++) {
+      const y = (i * (stripeHeight * 2)) + resolution * 0.1;
+      
+      ctx.fillRect(
+        startX,
+        y,
+        stripeWidth,
+        stripeHeight
+      );
+    }
+  }
+
+  /**
+   * Create tree textures as sprites/billboards
+   * @param {number} count - Number of unique textures to generate
+   * @param {number} resolution - Texture resolution (width/height)
+   */
+  createTreeTextures(count, resolution) {
+    const variants = ['pine', 'oak', 'birch', 'tropical'];
+    
+    for (let i = 0; i < count; i++) {
+      const variant = variants[i % variants.length];
+      const textureKey = `tree_${variant}`;
+      const canvas = document.createElement('canvas');
+      canvas.width = resolution;
+      canvas.height = resolution;
+      const ctx = canvas.getContext('2d');
+      
+      // Transparent background
+      ctx.clearRect(0, 0, resolution, resolution);
+      
+      // Draw tree based on variant
+      switch (variant) {
+        case 'pine':
+          this.drawPineTree(ctx, resolution);
+          break;
+          
+        case 'oak':
+          this.drawOakTree(ctx, resolution);
+          break;
+          
+        case 'birch':
+          this.drawBirchTree(ctx, resolution);
+          break;
+          
+        case 'tropical':
+          this.drawTropicalTree(ctx, resolution);
+          break;
+      }
+      
+      // Create texture from canvas
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.transparent = true;
+      texture.wrapS = THREE.ClampToEdgeWrapping;
+      texture.wrapT = THREE.ClampToEdgeWrapping;
+      
+      this.textureCache.set(textureKey, texture);
+    }
+  }
+
+  /**
+   * Draw a pine tree on the canvas
+   * @param {CanvasRenderingContext2D} ctx - Canvas context
+   * @param {number} resolution - Texture resolution
+   */
+  drawPineTree(ctx, resolution) {
+    const centerX = resolution / 2;
+    const trunkWidth = resolution * 0.1;
+    const trunkHeight = resolution * 0.35;
+    const trunkStartY = resolution * 0.8;
+    
+    // Draw trunk
+    const trunkGradient = ctx.createLinearGradient(
+      centerX - trunkWidth/2, 0, centerX + trunkWidth/2, 0
+    );
+    trunkGradient.addColorStop(0, '#5D4037');
+    trunkGradient.addColorStop(0.5, '#8D6E63');
+    trunkGradient.addColorStop(1, '#5D4037');
+    
+    ctx.fillStyle = trunkGradient;
+    ctx.fillRect(
+      centerX - trunkWidth/2,
+      trunkStartY - trunkHeight,
+      trunkWidth,
+      trunkHeight
+    );
+    
+    // Draw foliage (multiple triangle layers)
+    const foliageLayers = 4;
+    const baseWidth = resolution * 0.8;
+    const layerHeight = resolution * 0.15;
+    
+    for (let i = 0; i < foliageLayers; i++) {
+      const y = trunkStartY - trunkHeight - (i * layerHeight * 0.8);
+      const width = baseWidth - (i * baseWidth * 0.15);
+      
+      // Foliage gradient
+      const foliageGradient = ctx.createRadialGradient(
+        centerX, y, width * 0.1,
+        centerX, y, width * 0.5
+      );
+      foliageGradient.addColorStop(0, '#2E7D32');
+      foliageGradient.addColorStop(1, '#1B5E20');
+      
+      ctx.fillStyle = foliageGradient;
+      
+      // Draw triangle
+      ctx.beginPath();
+      ctx.moveTo(centerX - width/2, y);
+      ctx.lineTo(centerX + width/2, y);
+      ctx.lineTo(centerX, y - layerHeight);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  /**
+   * Draw an oak tree on the canvas
+   * @param {CanvasRenderingContext2D} ctx - Canvas context
+   * @param {number} resolution - Texture resolution
+   */
+  drawOakTree(ctx, resolution) {
+    const centerX = resolution / 2;
+    const trunkWidth = resolution * 0.12;
+    const trunkHeight = resolution * 0.3;
+    const trunkStartY = resolution * 0.8;
+    
+    // Draw trunk
+    const trunkGradient = ctx.createLinearGradient(
+      centerX - trunkWidth/2, 0, centerX + trunkWidth/2, 0
+    );
+    trunkGradient.addColorStop(0, '#5D4037');
+    trunkGradient.addColorStop(0.5, '#8D6E63');
+    trunkGradient.addColorStop(1, '#5D4037');
+    
+    ctx.fillStyle = trunkGradient;
+    ctx.fillRect(
+      centerX - trunkWidth/2,
+      trunkStartY - trunkHeight,
+      trunkWidth,
+      trunkHeight
+    );
+    
+    // Draw canopy as a large circle
+    const canopyRadius = resolution * 0.35;
+    const canopyCenterY = trunkStartY - trunkHeight - canopyRadius * 0.5;
+    
+    // Canopy gradient
+    const canopyGradient = ctx.createRadialGradient(
+      centerX, canopyCenterY, canopyRadius * 0.1,
+      centerX, canopyCenterY, canopyRadius
+    );
+    canopyGradient.addColorStop(0, '#388E3C');
+    canopyGradient.addColorStop(1, '#2E7D32');
+    
+    ctx.fillStyle = canopyGradient;
+    ctx.beginPath();
+    ctx.arc(centerX, canopyCenterY, canopyRadius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  /**
+   * Draw a birch tree on the canvas
+   * @param {CanvasRenderingContext2D} ctx - Canvas context
+   * @param {number} resolution - Texture resolution
+   */
+  drawBirchTree(ctx, resolution) {
+    const centerX = resolution / 2;
+    const trunkWidth = resolution * 0.08;
+    const trunkHeight = resolution * 0.4;
+    const trunkStartY = resolution * 0.8;
+    
+    // Draw trunk with white birch coloring
+    ctx.fillStyle = '#E0E0E0';
+    ctx.fillRect(
+      centerX - trunkWidth/2,
+      trunkStartY - trunkHeight,
+      trunkWidth,
+      trunkHeight
+    );
+    
+    // Add bark details (horizontal lines for birch)
+    ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+    ctx.lineWidth = 1;
+    
+    for (let y = trunkStartY - trunkHeight; y < trunkStartY; y += resolution * 0.03) {
+      const lineLength = Math.random() * (trunkWidth * 0.5) + trunkWidth * 0.25;
+      const lineX = centerX - trunkWidth/2 + Math.random() * (trunkWidth - lineLength);
+      
+      ctx.beginPath();
+      ctx.moveTo(lineX, y);
+      ctx.lineTo(lineX + lineLength, y);
+      ctx.stroke();
+    }
+    
+    // Draw foliage as an oval shape
+    const foliageWidth = resolution * 0.6;
+    const foliageHeight = resolution * 0.5;
+    const foliageCenterY = trunkStartY - trunkHeight - foliageHeight * 0.3;
+    
+    // Foliage gradient
+    const foliageGradient = ctx.createRadialGradient(
+      centerX, foliageCenterY, foliageWidth * 0.1,
+      centerX, foliageCenterY, foliageWidth * 0.5
+    );
+    foliageGradient.addColorStop(0, '#81C784');
+    foliageGradient.addColorStop(1, '#4CAF50');
+    
+    ctx.fillStyle = foliageGradient;
+    
+    // Draw oval
+    ctx.beginPath();
+    ctx.ellipse(
+      centerX, foliageCenterY,
+      foliageWidth/2, foliageHeight/2,
+      0, 0, Math.PI * 2
+    );
+    ctx.fill();
+  }
+
+  /**
+   * Draw a tropical/palm tree on the canvas
+   * @param {CanvasRenderingContext2D} ctx - Canvas context
+   * @param {number} resolution - Texture resolution
+   */
+  drawTropicalTree(ctx, resolution) {
+    const centerX = resolution / 2;
+    const trunkWidth = resolution * 0.1;
+    const trunkHeight = resolution * 0.5;
+    const trunkStartY = resolution * 0.8;
+    
+    // Curve for palm trunk
+    ctx.strokeStyle = '#8D6E63';
+    ctx.lineWidth = trunkWidth;
+    ctx.lineCap = 'round';
+    
+    const curveEndX = centerX + resolution * 0.1;
+    const curveEndY = trunkStartY - trunkHeight;
+    
+    ctx.beginPath();
+    ctx.moveTo(centerX, trunkStartY);
+    ctx.quadraticCurveTo(
+      centerX - resolution * 0.05,
+      trunkStartY - trunkHeight * 0.5,
+      curveEndX,
+      curveEndY
+    );
+    ctx.stroke();
+    
+    // Draw palm fronds radiating from top
+    const frondCount = 7;
+    const frondLength = resolution * 0.35;
+    
+    for (let i = 0; i < frondCount; i++) {
+      const angle = (i * Math.PI * 2 / frondCount) - Math.PI * 0.5;
+      
+      ctx.strokeStyle = '#4CAF50';
+      ctx.lineWidth = resolution * 0.02;
+      
+      ctx.beginPath();
+      ctx.moveTo(curveEndX, curveEndY);
+      ctx.lineTo(
+        curveEndX + Math.cos(angle) * frondLength,
+        curveEndY + Math.sin(angle) * frondLength
+      );
+      ctx.stroke();
+      
+      // Add frond detail
+      const leafCount = 5;
+      const leafLength = resolution * 0.08;
+      
+      for (let j = 1; j <= leafCount; j++) {
+        const t = j / (leafCount + 1); // position along the frond (0-1)
+        const leafX = curveEndX + Math.cos(angle) * frondLength * t;
+        const leafY = curveEndY + Math.sin(angle) * frondLength * t;
+        
+        // Left leaf
+        const leftAngle = angle - Math.PI/2;
+        ctx.strokeStyle = '#66BB6A';
+        ctx.lineWidth = resolution * 0.01;
+        ctx.beginPath();
+        ctx.moveTo(leafX, leafY);
+        ctx.lineTo(
+          leafX + Math.cos(leftAngle) * leafLength,
+          leafY + Math.sin(leftAngle) * leafLength
+        );
+        ctx.stroke();
+        
+        // Right leaf
+        const rightAngle = angle + Math.PI/2;
+        ctx.beginPath();
+        ctx.moveTo(leafX, leafY);
+        ctx.lineTo(
+          leafX + Math.cos(rightAngle) * leafLength,
+          leafY + Math.sin(rightAngle) * leafLength
+        );
+        ctx.stroke();
+      }
+    }
+  }
+
+  /**
+   * Create grass textures with variations
+   * @param {number} count - Number of unique textures to generate
+   * @param {number} resolution - Texture resolution (width/height)
+   */
+  createGrassTextures(count, resolution) {
+    const variants = ['lawn', 'wild', 'dry'];
+    
+    for (let i = 0; i < count; i++) {
+      const variant = variants[i % variants.length];
+      const textureKey = `grass_${variant}`;
+      const canvas = document.createElement('canvas');
+      canvas.width = resolution;
+      canvas.height = resolution;
+      const ctx = canvas.getContext('2d');
+      
+      // Base grass color
+      let baseColor, bladeColor, accentColor;
+      
+      switch (variant) {
+        case 'lawn':
+          baseColor = '#2E7D32'; // Dark green
+          bladeColor = '#4CAF50'; // Medium green
+          accentColor = '#81C784'; // Light green
+          break;
+          
+        case 'wild':
+          baseColor = '#33691E'; // Darker green
+          bladeColor = '#558B2F'; // Olive
+          accentColor = '#7CB342'; // Light olive
+          break;
+          
+        case 'dry':
+          baseColor = '#827717'; // Yellow-green
+          bladeColor = '#9E9D24'; // Yellow-olive
+          accentColor = '#D4E157'; // Light yellow
+          break;
+      }
+      
+      // Fill background
+      ctx.fillStyle = baseColor;
+      ctx.fillRect(0, 0, resolution, resolution);
+      
+      // Add noise and texture
+      this.addGrassTexture(ctx, resolution, bladeColor, accentColor, variant);
+      
+      // Create texture from canvas
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      texture.repeat.set(1, 1);
+      
+      this.textureCache.set(textureKey, texture);
+    }
+  }
+
+  /**
+   * Add grass blades and texture to the canvas
+   * @param {CanvasRenderingContext2D} ctx - Canvas context
+   * @param {number} resolution - Texture resolution
+   * @param {string} bladeColor - Main color for grass blades
+   * @param {string} accentColor - Highlight color for some blades
+   * @param {string} variant - Type of grass ('lawn', 'wild', 'dry')
+   */
+  addGrassTexture(ctx, resolution, bladeColor, accentColor, variant) {
+    // Draw different types of grass blades
+    const bladeCount = variant === 'lawn' ? 1000 : 
+                      (variant === 'wild' ? 800 : 600);
+    
+    for (let i = 0; i < bladeCount; i++) {
+      const x = Math.random() * resolution;
+      const y = Math.random() * resolution;
+      
+      // Determine blade attributes based on variant
+      let bladeHeight, bladeWidth, curvature;
+      
+      switch (variant) {
+        case 'lawn':
+          bladeHeight = 3 + Math.random() * 4;
+          bladeWidth = 1 + Math.random();
+          curvature = 0.2 + Math.random() * 0.3;
+          break;
+          
+        case 'wild':
+          bladeHeight = 5 + Math.random() * 8;
+          bladeWidth = 1 + Math.random() * 1.5;
+          curvature = 0.3 + Math.random() * 0.5;
+          break;
+          
+        case 'dry':
+          bladeHeight = 4 + Math.random() * 7;
+          bladeWidth = 0.8 + Math.random();
+          curvature = 0.1 + Math.random() * 0.3;
+          break;
+      }
+      
+      // Randomly choose blade color
+      ctx.fillStyle = Math.random() < 0.8 ? bladeColor : accentColor;
+      
+      // Draw blade
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      
+      const controlX = x + curvature * bladeHeight * (Math.random() > 0.5 ? 1 : -1);
+      const controlY = y - bladeHeight * 0.6;
+      const endX = x + (Math.random() - 0.5) * bladeWidth * 2;
+      const endY = y - bladeHeight;
+      
+      ctx.quadraticCurveTo(controlX, controlY, endX, endY);
+      ctx.lineTo(endX + bladeWidth, endY);
+      ctx.quadraticCurveTo(controlX + bladeWidth, controlY, x + bladeWidth, y);
+      ctx.closePath();
+      ctx.fill();
+    }
+    
+    // Add small details and dirt specs
+    for (let i = 0; i < 500; i++) {
+      const x = Math.random() * resolution;
+      const y = Math.random() * resolution;
+      const size = 1 + Math.random();
+      
+      if (Math.random() < 0.7) {
+        // Grass detail
+        ctx.fillStyle = Math.random() < 0.5 ? bladeColor : accentColor;
+      } else {
+        // Dirt/debris
+        ctx.fillStyle = `rgba(101, 67, 33, ${Math.random() * 0.2 + 0.1})`;
+      }
+      
+      ctx.fillRect(x, y, size, size);
     }
   }
 } 

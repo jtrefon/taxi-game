@@ -25,6 +25,14 @@ export class ManhattanMap extends BaseMap {
       environmentMap: options.environmentMap
     });
     
+    // Get TextureFactory from CityGenerator for consistent textures
+    if (this.cityGenerator && this.cityGenerator.textureService) {
+      this.textureFactory = this.cityGenerator.textureService.textureFactory;
+    } else {
+      // Use base map's texture factory
+      this.textureFactory = this.getTextureFactory();
+    }
+    
     // Manhattan layout configuration
     this.gridWidth = 8;
     this.gridHeight = 8;
@@ -286,6 +294,11 @@ export class ManhattanMap extends BaseMap {
     
     const baseBuilding = this.createBuilding(x, z, baseWidth, baseDepth, baseHeight, 0);
     
+    // Apply texture to base building
+    if (this.textureFactory) {
+      this.textureFactory.getFacadeTexture('glass', `empire_${x}_${z}`);
+    }
+    
     // Mid section
     const midWidth = 20;
     const midDepth = 20;
@@ -299,8 +312,14 @@ export class ManhattanMap extends BaseMap {
     midSection.castShadow = true;
     this.scene.add(midSection);
     
-    // Add windows to mid section
-    this.addWindowsToBuilding(midSection, midWidth, midHeight, midDepth);
+    // Apply texture to mid section
+    if (this.textureFactory) {
+      const midTexture = this.textureFactory.getFacadeTexture('office', `empire_mid_${x}_${z}`);
+      if (midTexture) {
+        midMaterial.map = midTexture;
+        midMaterial.needsUpdate = true;
+      }
+    }
     
     // Spire
     const spireRadius = 5;
