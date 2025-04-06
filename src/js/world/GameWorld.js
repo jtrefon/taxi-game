@@ -1,5 +1,5 @@
-import * as THREE from 'three';
-import * as CANNON from 'cannon-es';
+import * as THREE from '../../libs/three.module.js';
+import * as CANNON from '../../libs/cannon-es.js';
 
 /**
  * Manages the overall game world, including ground, sky, and environmental elements
