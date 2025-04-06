@@ -632,7 +632,7 @@ export class BaseMap {
     collisionMesh.position.set(x, collisionHeight / 2, z);
     
     // Add physics for the tree
-    this.physicsWorld.addRigidBody(
+    this.physicsWorld.addBody(
       new CANNON.Body({
         mass: 0,
         shape: new CANNON.Cylinder(
