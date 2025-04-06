@@ -262,7 +262,7 @@ class Game {
     
     // Update money display
     this.moneyElement.textContent = `$${this.money}`;
-
+    
     // Update FPS display if enabled
     if (this.showFps && this.fpsElement) {
         this.fpsElement.textContent = `FPS: ${Math.round(this.fps)}`;
@@ -289,7 +289,7 @@ class Game {
     
     // Update HUD
     this.updateHUD();
-
+    
     // Calculate FPS
     const now = performance.now();
     const delta = now - this.lastFrameTime;
