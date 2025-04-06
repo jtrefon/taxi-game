@@ -12,23 +12,31 @@ export class TextureFactory {
   }
 
   /**
-   * Initialize texture set with various building facades
-   * @param {number} count - Number of unique facade textures to generate
-   * @param {number} resolution - Texture resolution (width/height)
-   * @returns {Map<string, THREE.Texture>} Map of generated textures
+   * Initialize textures for common types
+   * @param {number} count - Number of unique textures to generate per type
+   * @param {number} resolution - Texture resolution 
    */
   initTextures(count = 8, resolution = 512) {
-    // Create different types of building facades
-    this.createGlassFacades(Math.ceil(count * 0.3), resolution);
-    this.createOfficeFacades(Math.ceil(count * 0.3), resolution);
-    this.createResidentialFacades(Math.ceil(count * 0.4), resolution);
+    this.textureCache = new Map();
     
-    // Create road and nature textures
-    this.createRoadTextures(3, resolution);
-    this.createTreeTextures(4, resolution);
-    this.createGrassTextures(3, resolution);
+    // Create building facade textures
+    this.createGlassFacades(count, resolution);
+    this.createOfficeFacades(count, resolution);
+    this.createResidentialFacades(count, resolution);
     
-    return this.textureCache;
+    // Create environment textures
+    this.createRoadTextures(count, resolution);
+    this.createSidewalkTexture(resolution);
+    this.createTreeTextures(count, resolution);
+    this.createGrassTextures(count, resolution);
+    
+    // Initialize bark textures for all tree types
+    this.createBarkTexture('pine', resolution);
+    this.createBarkTexture('oak', resolution);
+    this.createBarkTexture('birch', resolution);
+    this.createBarkTexture('tropical', resolution);
+    
+    console.log(`Initialized ${this.textureCache.size} textures`);
   }
 
   /**
@@ -1160,7 +1168,7 @@ export class TextureFactory {
       
       const leafletCount = 10;
       
-      // Calculate points along the frond
+      // Calculate points along the quadratic curve
       for (let j = 1; j <= leafletCount; j++) {
         const t = j / (leafletCount + 1);
         
@@ -1196,9 +1204,28 @@ export class TextureFactory {
   }
 
   /**
-   * Create bark textures for tree trunks
+   * Get a bark texture for a specific tree type
+   * @param {string} treeType - Type of tree ('pine', 'oak', 'birch', 'tropical')
+   * @returns {THREE.Texture} The bark texture
+   */
+  getBarkTexture(treeType) {
+    const textureKey = `tree_${treeType}_bark`;
+    
+    // Return cached texture if available
+    if (this.textureCache.has(textureKey)) {
+      return this.textureCache.get(textureKey);
+    }
+    
+    // Create and return a new texture
+    this.createBarkTexture(treeType, 512);
+    return this.textureCache.get(textureKey);
+  }
+
+  /**
+   * Creates a bark texture for a specific tree type
    * @param {string} treeType - Type of tree bark to create
    * @param {number} resolution - Texture resolution
+   * @returns {THREE.Texture} The created texture
    */
   createBarkTexture(treeType, resolution) {
     const textureKey = `tree_${treeType}_bark`;
@@ -1274,6 +1301,7 @@ export class TextureFactory {
     texture.wrapT = THREE.RepeatWrapping;
     
     this.textureCache.set(textureKey, texture);
+    return texture;
   }
 
   /**

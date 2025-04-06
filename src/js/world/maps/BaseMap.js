@@ -307,16 +307,19 @@ export class BaseMap {
     const heightScale = baseScale * 2;
     let trunkRadius, trunkHeight, crownShape, crownRadius, crownHeight;
     
+    // Get texture factory
+    const textureFactory = this.getTextureFactory();
+    
     // Materials setup with texture
     const barkMaterial = new THREE.MeshStandardMaterial({
-      map: this.cityGenerator?.textureFactory.getBarkTexture(type) || null,
+      map: textureFactory.getBarkTexture ? textureFactory.getBarkTexture(type) : null,
       roughness: 0.9,
       metalness: 0.1,
       color: type === 'birch' ? 0xDDDDDD : 0x8D6E63
     });
     
     const foliageMaterial = new THREE.MeshStandardMaterial({
-      map: this.cityGenerator?.textureFactory.getEnvironmentTexture('tree', type) || null,
+      map: textureFactory.getEnvironmentTexture('tree', type),
       color: this.getTreeFoliageColor(type),
       roughness: 0.8,
       metalness: 0.0,
