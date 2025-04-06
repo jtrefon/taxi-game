@@ -385,6 +385,8 @@ class Game {
     
     const despawnDistanceSq = 150 * 150; // Increased despawn radius slightly
     const behindDespawnDelay = 4.0; // Despawn after 4 seconds behind player
+    const headTurnRadiusSq = 25 * 25; // NPCs look at player within 25 units
+    const headTurnSpeed = 0.05; // Speed of head turning
 
     for (let i = this.npcs.length - 1; i >= 0; i--) {
         const npcGroup = this.npcs[i];
@@ -401,10 +403,56 @@ class Game {
             continue;
         }
         const npcBody = npcData.body;
+        const headMesh = npcData.headMesh; // Get the head mesh reference
 
         // Update mesh position from physics body
         npcGroup.position.copy(npcBody.position);
         npcGroup.quaternion.copy(npcBody.quaternion);
+
+        // Determine default forward orientation for the head based on body
+        const defaultHeadQuaternion = new THREE.Quaternion(); // Represents no rotation relative to body
+        let targetHeadQuaternion = defaultHeadQuaternion.clone();
+
+        // --- Head Turning Logic --- 
+        // Convert player's THREE.Vector3 position to CANNON.Vec3 for subtraction
+        const playerPositionCANNON = new CANNON.Vec3(playerPosition.x, playerPosition.y, playerPosition.z);
+        const vectorToPlayer = playerPositionCANNON.vsub(npcBody.position);
+        const distanceToPlayerSq = vectorToPlayer.lengthSquared();
+        let shouldLookAtPlayer = false;
+
+        if (distanceToPlayerSq <= headTurnRadiusSq && headMesh) {
+            shouldLookAtPlayer = true;
+            // Calculate direction from head to player (use world positions)
+            const headWorldPos = new THREE.Vector3();
+            headMesh.getWorldPosition(headWorldPos);
+            // Use the original THREE.Vector3 position for Three.js calculations
+            const playerWorldPos = playerPosition.clone(); 
+            const lookAtDir = playerWorldPos.sub(headWorldPos).normalize();
+
+            // Calculate target quaternion relative to the NPC's body rotation
+            const bodyQuaternionInv = npcBody.quaternion.clone().conjugate(); // Inverse of body rotation
+            const lookAtTarget = new CANNON.Vec3(lookAtDir.x, lookAtDir.y, lookAtDir.z);
+            const relativeLookAt = new CANNON.Vec3();
+            bodyQuaternionInv.vmult(lookAtTarget, relativeLookAt); // Transform lookAt vector to body's local space
+            
+            // Calculate the rotation needed to align local +Z with the HORIZONTAL component of the relative look direction
+            const relativeLookAtTHREE = new THREE.Vector3(relativeLookAt.x, relativeLookAt.y, relativeLookAt.z);
+            const horizontalLookDir = new THREE.Vector3(relativeLookAtTHREE.x, 0, relativeLookAtTHREE.z); // Project onto local XZ plane
+
+            // Only calculate rotation if the horizontal direction is valid
+            if (horizontalLookDir.lengthSq() > 0.001) { 
+                horizontalLookDir.normalize();
+                const defaultLocalForward = new THREE.Vector3(0, 0, 1);
+                targetHeadQuaternion.setFromUnitVectors(defaultLocalForward, horizontalLookDir);
+            } 
+            // If player is directly above/below, targetHeadQuaternion remains default (looking straight ahead relative to body)
+        }
+
+        // Smoothly rotate the head towards the target (or back to default)
+        if (headMesh) {
+            headMesh.quaternion.slerp(targetHeadQuaternion, headTurnSpeed);
+        }
+        // --- End Head Turning Logic ---
 
         // Simple walking behavior (existing code)
         if (npcData.state === 'walking') {
