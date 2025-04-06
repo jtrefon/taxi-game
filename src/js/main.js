@@ -5,10 +5,10 @@ import * as CANNON from 'cannon-es';
 
 import { GameWorld } from './world/GameWorld.js';
 import { Vehicle } from './entities/Vehicle.js';
-import { CityGenerator } from './world/CityGenerator.js';
 import { InputHandler } from './core/InputHandler.js';
 import { MobileControls } from './ui/MobileControls.js';
 import { FullscreenButton } from './ui/FullscreenButton.js';
+import { MapManager } from './world/maps/MapManager.js';
 
 class Game {
   constructor() {
@@ -114,9 +114,9 @@ class Game {
     // Create game world
     this.gameWorld = new GameWorld(this.scene, this.physicsWorld);
     
-    // Generate city - increase from 5x5 to 7x7 city blocks for more space
-    this.cityGenerator = new CityGenerator(this.scene, this.physicsWorld);
-    this.cityGenerator.generateCity(7, 7);
+    // Initialize map manager and create Manhattan map
+    this.mapManager = new MapManager(this.scene, this.physicsWorld);
+    this.mapManager.createMap('manhattan');
     
     // Create player vehicle
     this.playerVehicle = new Vehicle(this.scene, this.physicsWorld, {
