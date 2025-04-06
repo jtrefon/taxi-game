@@ -36,8 +36,8 @@ jobs:
       - name: Install dependencies
         run: npm install
       - name: Build project
-        # Sets the base path for Vite during build
-        run: npm run build -- --base=/taxi-game/
+        # Vite will now use the base path from vite.config.js
+        run: npm run build
       - name: Setup Pages
         uses: actions/configure-pages@v4
       - name: Upload artifact
