@@ -729,33 +729,62 @@ export class TextureFactory {
       trunkHeight
     );
     
-    // Draw foliage (multiple triangle layers)
-    const foliageLayers = 4;
-    const baseWidth = resolution * 0.8;
-    const layerHeight = resolution * 0.15;
+    // Draw more detailed pine needle foliage
+    // Base color gradient
+    const foliageGradient = ctx.createRadialGradient(
+      centerX, resolution * 0.4, resolution * 0.05,
+      centerX, resolution * 0.4, resolution * 0.45
+    );
+    foliageGradient.addColorStop(0, '#2E7D32'); // Bright center
+    foliageGradient.addColorStop(0.7, '#1B5E20'); // Mid-dark
+    foliageGradient.addColorStop(1, '#0A3C0A'); // Darker edges
     
-    for (let i = 0; i < foliageLayers; i++) {
-      const y = trunkStartY - trunkHeight - (i * layerHeight * 0.8);
-      const width = baseWidth - (i * baseWidth * 0.15);
+    // Draw main pine shape
+    ctx.fillStyle = foliageGradient;
+    
+    // Create a triangular shape for the foliage
+    ctx.beginPath();
+    ctx.moveTo(centerX, resolution * 0.15); // Top point
+    ctx.lineTo(centerX - resolution * 0.35, resolution * 0.6); // Bottom left
+    ctx.lineTo(centerX + resolution * 0.35, resolution * 0.6); // Bottom right
+    ctx.closePath();
+    ctx.fill();
+    
+    // Add texture details to simulate pine needles
+    ctx.strokeStyle = '#338037'; // Slightly lighter than base
+    ctx.lineWidth = 0.8;
+    
+    // Draw angled lines to simulate pine needle clusters
+    for (let i = 0; i < 160; i++) {
+      const startX = centerX + (Math.random() - 0.5) * resolution * 0.7;
+      const startY = resolution * 0.2 + Math.random() * resolution * 0.4;
       
-      // Foliage gradient
-      const foliageGradient = ctx.createRadialGradient(
-        centerX, y, width * 0.1,
-        centerX, y, width * 0.5
-      );
-      foliageGradient.addColorStop(0, '#2E7D32');
-      foliageGradient.addColorStop(1, '#1B5E20');
+      // Don't draw outside the triangle silhouette
+      const normalizedY = (startY - resolution * 0.15) / (resolution * 0.45);
+      const maxWidth = resolution * 0.35 * (1 - normalizedY * 0.7);
       
-      ctx.fillStyle = foliageGradient;
+      if (Math.abs(startX - centerX) > maxWidth) continue;
       
-      // Draw triangle
+      const angle = (Math.random() - 0.5) * Math.PI * 0.4 + (startX > centerX ? -Math.PI/4 : Math.PI/4);
+      const length = 4 + Math.random() * 8;
+      
       ctx.beginPath();
-      ctx.moveTo(centerX - width/2, y);
-      ctx.lineTo(centerX + width/2, y);
-      ctx.lineTo(centerX, y - layerHeight);
-      ctx.closePath();
-      ctx.fill();
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(
+        startX + Math.cos(angle) * length,
+        startY + Math.sin(angle) * length
+      );
+      ctx.stroke();
     }
+    
+    // Add highlights for dimension
+    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    ctx.beginPath();
+    ctx.moveTo(centerX, resolution * 0.15); // Top point
+    ctx.lineTo(centerX - resolution * 0.15, resolution * 0.4); // Mid left
+    ctx.lineTo(centerX, resolution * 0.35); // Mid center
+    ctx.closePath();
+    ctx.fill();
   }
 
   /**
@@ -785,21 +814,96 @@ export class TextureFactory {
       trunkHeight
     );
     
-    // Draw canopy as a large circle
+    // Create more detailed oak leaf texture
+    // Base canopy
     const canopyRadius = resolution * 0.35;
-    const canopyCenterY = trunkStartY - trunkHeight - canopyRadius * 0.5;
+    const canopyCenterY = resolution * 0.38;
     
-    // Canopy gradient
+    // Create more realistic gradient with deeper colors
     const canopyGradient = ctx.createRadialGradient(
-      centerX, canopyCenterY, canopyRadius * 0.1,
-      centerX, canopyCenterY, canopyRadius
+      centerX - canopyRadius * 0.2, canopyCenterY - canopyRadius * 0.2, canopyRadius * 0.1,
+      centerX, canopyCenterY, canopyRadius * 1.1
     );
-    canopyGradient.addColorStop(0, '#388E3C');
-    canopyGradient.addColorStop(1, '#2E7D32');
+    canopyGradient.addColorStop(0, '#4CAF50');   // Highlight point
+    canopyGradient.addColorStop(0.4, '#388E3C'); // Mid green
+    canopyGradient.addColorStop(0.8, '#2E7D32'); // Dark green
+    canopyGradient.addColorStop(1, '#1B5E20');   // Darker edge
     
+    // Draw main foliage as an irregular shape instead of perfect circle
     ctx.fillStyle = canopyGradient;
     ctx.beginPath();
+    
+    // Draw an irregular oak canopy
+    const leafCluster = (x, y, size) => {
+      // Create a cluster of small "leaf" circles
+      const clusterSize = size || 20 + Math.random() * 20;
+      const count = 3 + Math.floor(Math.random() * 3);
+      
+      for (let i = 0; i < count; i++) {
+        const angle = (i / count) * Math.PI * 2 + Math.random() * 0.5;
+        const distance = clusterSize * (0.4 + Math.random() * 0.3);
+        const leafX = x + Math.cos(angle) * distance;
+        const leafY = y + Math.sin(angle) * distance;
+        const leafSize = clusterSize * (0.3 + Math.random() * 0.4);
+        
+        ctx.beginPath();
+        ctx.arc(leafX, leafY, leafSize, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    };
+    
+    // Draw main canopy mass
+    ctx.beginPath();
     ctx.arc(centerX, canopyCenterY, canopyRadius, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Add leaf clusters around the edges
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI * 2;
+      const dist = canopyRadius * 0.7;
+      const x = centerX + Math.cos(angle) * dist;
+      const y = canopyCenterY + Math.sin(angle) * dist;
+      
+      leafCluster(x, y);
+    }
+    
+    // Add smaller detail texture inside
+    ctx.strokeStyle = 'rgba(50,120,50,0.4)';
+    ctx.lineWidth = 0.8;
+    
+    // Add small details to simulate leaf textures
+    for (let i = 0; i < 200; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = Math.random() * canopyRadius * 0.9;
+      const x = centerX + Math.cos(angle) * dist;
+      const y = canopyCenterY + Math.sin(angle) * dist;
+      
+      const leafAngle = Math.random() * Math.PI * 2;
+      const leafSize = 3 + Math.random() * 4;
+      
+      // Draw small "v" shapes for oak leaf texture
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(
+        x + Math.cos(leafAngle) * leafSize,
+        y + Math.sin(leafAngle) * leafSize
+      );
+      ctx.lineTo(
+        x + Math.cos(leafAngle + 0.4) * leafSize * 0.8,
+        y + Math.sin(leafAngle + 0.4) * leafSize * 0.8
+      );
+      ctx.stroke();
+    }
+    
+    // Add subtle highlights
+    ctx.fillStyle = 'rgba(255,255,255,0.07)';
+    ctx.beginPath();
+    ctx.arc(
+      centerX - canopyRadius * 0.2,
+      canopyCenterY - canopyRadius * 0.2,
+      canopyRadius * 0.6,
+      0, Math.PI * 2
+    );
     ctx.fill();
   }
 
@@ -823,7 +927,7 @@ export class TextureFactory {
       trunkHeight
     );
     
-    // Add bark details (horizontal lines for birch)
+    // Add more realistic bark details (horizontal lines for birch)
     ctx.strokeStyle = 'rgba(0,0,0,0.2)';
     ctx.lineWidth = 1;
     
@@ -837,29 +941,87 @@ export class TextureFactory {
       ctx.stroke();
     }
     
-    // Draw foliage as an oval shape
+    // Create more natural foliage texture
     const foliageWidth = resolution * 0.6;
-    const foliageHeight = resolution * 0.5;
-    const foliageCenterY = trunkStartY - trunkHeight - foliageHeight * 0.3;
+    const foliageHeight = resolution * 0.7; // Taller for birch
+    const foliageCenterY = resolution * 0.35;
     
-    // Foliage gradient
-    const foliageGradient = ctx.createRadialGradient(
-      centerX, foliageCenterY, foliageWidth * 0.1,
-      centerX, foliageCenterY, foliageWidth * 0.5
+    // Create vertical gradient for birch foliage
+    const foliageGradient = ctx.createLinearGradient(
+      centerX, foliageCenterY - foliageHeight/2,
+      centerX, foliageCenterY + foliageHeight/2
     );
-    foliageGradient.addColorStop(0, '#81C784');
-    foliageGradient.addColorStop(1, '#4CAF50');
+    foliageGradient.addColorStop(0, '#ABEBC6'); // Lighter at top
+    foliageGradient.addColorStop(0.5, '#81C784');
+    foliageGradient.addColorStop(1, '#66BB6A'); // Slightly darker at bottom
     
     ctx.fillStyle = foliageGradient;
     
-    // Draw oval
-    ctx.beginPath();
-    ctx.ellipse(
-      centerX, foliageCenterY,
-      foliageWidth/2, foliageHeight/2,
-      0, 0, Math.PI * 2
+    // Draw multiple overlapping ovals for more natural looking canopy
+    const drawOval = (x, y, width, height) => {
+      ctx.beginPath();
+      ctx.ellipse(
+        x, y,
+        width/2, height/2,
+        0, 0, Math.PI * 2
+      );
+      ctx.fill();
+    };
+    
+    // Draw main oval
+    drawOval(centerX, foliageCenterY, foliageWidth, foliageHeight);
+    
+    // Draw sub-ovals for texture
+    drawOval(
+      centerX + foliageWidth * 0.2,
+      foliageCenterY - foliageHeight * 0.15,
+      foliageWidth * 0.6,
+      foliageHeight * 0.5
     );
-    ctx.fill();
+    
+    drawOval(
+      centerX - foliageWidth * 0.25,
+      foliageCenterY - foliageHeight * 0.2,
+      foliageWidth * 0.7,
+      foliageHeight * 0.45
+    );
+    
+    // Add detailed leaf texture
+    ctx.strokeStyle = 'rgba(100, 180, 100, 0.4)';
+    ctx.lineWidth = 0.6;
+    
+    // Small triangular strokes to simulate birch leaves
+    for (let i = 0; i < 200; i++) {
+      const x = centerX + (Math.random() - 0.5) * foliageWidth * 0.9;
+      const yOffset = (Math.random() - 0.5) * foliageHeight * 0.8;
+      const y = foliageCenterY + yOffset;
+      
+      // Don't draw outside the oval shape
+      const normalizedX = (x - centerX) / (foliageWidth/2);
+      const normalizedY = yOffset / (foliageHeight/2);
+      if (normalizedX * normalizedX + normalizedY * normalizedY > 0.9) continue;
+      
+      // Small diagonal line representing leaf edge
+      const angle = Math.random() * Math.PI;
+      const size = 3 + Math.random() * 3;
+      
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(
+        x + Math.cos(angle) * size,
+        y + Math.sin(angle) * size
+      );
+      ctx.stroke();
+    }
+    
+    // Add subtle highlights
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    drawOval(
+      centerX - foliageWidth * 0.15,
+      foliageCenterY - foliageHeight * 0.15,
+      foliageWidth * 0.6,
+      foliageHeight * 0.4
+    );
   }
 
   /**
@@ -873,72 +1035,162 @@ export class TextureFactory {
     const trunkHeight = resolution * 0.5;
     const trunkStartY = resolution * 0.8;
     
-    // Curve for palm trunk
+    // Curve for palm trunk with more realistic texture
     ctx.strokeStyle = '#8D6E63';
     ctx.lineWidth = trunkWidth;
     ctx.lineCap = 'round';
     
     const curveEndX = centerX + resolution * 0.1;
-    const curveEndY = trunkStartY - trunkHeight;
+    const curveEndY = resolution * 0.3;
     
+    // Add trunk texture first
+    const trunkX = centerX;
+    const trunkY = trunkStartY - trunkHeight / 2;
+    
+    // Draw textured trunk
+    const trunkGradient = ctx.createLinearGradient(
+      trunkX - trunkWidth/2, 0,
+      trunkX + trunkWidth/2, 0
+    );
+    trunkGradient.addColorStop(0, '#8D6E63');
+    trunkGradient.addColorStop(0.4, '#A1887F');
+    trunkGradient.addColorStop(0.6, '#A1887F');
+    trunkGradient.addColorStop(1, '#8D6E63');
+    
+    ctx.strokeStyle = trunkGradient;
+    
+    // Draw trunk with curve
     ctx.beginPath();
     ctx.moveTo(centerX, trunkStartY);
     ctx.quadraticCurveTo(
       centerX - resolution * 0.05,
-      trunkStartY - trunkHeight * 0.5,
+      trunkStartY - trunkHeight * 0.6,
       curveEndX,
       curveEndY
     );
     ctx.stroke();
     
-    // Draw palm fronds radiating from top
-    const frondCount = 7;
-    const frondLength = resolution * 0.35;
+    // Add trunk texture details - horizontal lines for palm trunk segments
+    ctx.strokeStyle = '#795548';
+    ctx.lineWidth = 1;
+    
+    // Add texture rings to the trunk
+    const trunkSteps = 12; 
+    const trunkPath = [];
+    
+    // Generate points along the trunk curve
+    for (let i = 0; i <= trunkSteps; i++) {
+      const t = i / trunkSteps;
+      const x = centerX * (1 - t) * (1 - t) + 
+                (centerX - resolution * 0.05) * 2 * t * (1 - t) +
+                curveEndX * t * t;
+                
+      const y = trunkStartY * (1 - t) * (1 - t) + 
+                (trunkStartY - trunkHeight * 0.6) * 2 * t * (1 - t) +
+                curveEndY * t * t;
+                
+      trunkPath.push({x, y});
+    }
+    
+    // Draw texture lines across the trunk
+    for (let i = 1; i < trunkPath.length - 1; i += 2) {
+      const point = trunkPath[i];
+      const prevPoint = trunkPath[i-1];
+      const nextPoint = trunkPath[i+1];
+      
+      // Calculate perpendicular direction to trunk curve
+      const dx = nextPoint.x - prevPoint.x;
+      const dy = nextPoint.y - prevPoint.y;
+      const length = Math.sqrt(dx*dx + dy*dy);
+      
+      // Normalize and get perpendicular
+      const nx = -dy / length;
+      const ny = dx / length;
+      
+      // Draw texture line
+      ctx.beginPath();
+      ctx.moveTo(
+        point.x - nx * trunkWidth/1.8,
+        point.y - ny * trunkWidth/1.8
+      );
+      ctx.lineTo(
+        point.x + nx * trunkWidth/1.8,
+        point.y + ny * trunkWidth/1.8
+      );
+      ctx.stroke();
+    }
+    
+    // Create crown at the top
+    ctx.fillStyle = '#2E7D32';
+    ctx.beginPath();
+    ctx.arc(curveEndX, curveEndY, trunkWidth, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Draw palm fronds with more realistic details
+    const frondCount = 9;
+    const frondLength = resolution * 0.4;
+    
+    // Set for drawing fronds with more details
+    ctx.strokeStyle = '#4CAF50';
+    ctx.lineWidth = trunkWidth / 4;
+    ctx.lineCap = 'round';
     
     for (let i = 0; i < frondCount; i++) {
       const angle = (i * Math.PI * 2 / frondCount) - Math.PI * 0.5;
       
-      ctx.strokeStyle = '#4CAF50';
-      ctx.lineWidth = resolution * 0.02;
-      
+      // Create curved frond path
       ctx.beginPath();
       ctx.moveTo(curveEndX, curveEndY);
-      ctx.lineTo(
-        curveEndX + Math.cos(angle) * frondLength,
-        curveEndY + Math.sin(angle) * frondLength
-      );
+      
+      // Control point for curve
+      const cpX = curveEndX + Math.cos(angle) * frondLength * 0.5;
+      const cpY = curveEndY + Math.sin(angle) * frondLength * 0.3;
+      
+      // End point with slight droop
+      const endX = curveEndX + Math.cos(angle) * frondLength;
+      const endY = curveEndY + Math.sin(angle) * frondLength + frondLength * 0.15;
+      
+      // Draw the curved frond
+      ctx.quadraticCurveTo(cpX, cpY, endX, endY);
       ctx.stroke();
       
-      // Add frond detail
-      const leafCount = 5;
-      const leafLength = resolution * 0.08;
+      // Add leaflet details
+      ctx.strokeStyle = '#66BB6A';
+      ctx.lineWidth = resolution * 0.006;
       
-      for (let j = 1; j <= leafCount; j++) {
-        const t = j / (leafCount + 1); // position along the frond (0-1)
-        const leafX = curveEndX + Math.cos(angle) * frondLength * t;
-        const leafY = curveEndY + Math.sin(angle) * frondLength * t;
+      const leafletCount = 10;
+      
+      // Calculate points along the frond
+      for (let j = 1; j <= leafletCount; j++) {
+        const t = j / (leafletCount + 1);
         
-        // Left leaf
-        const leftAngle = angle - Math.PI/2;
-        ctx.strokeStyle = '#66BB6A';
-        ctx.lineWidth = resolution * 0.01;
-        ctx.beginPath();
-        ctx.moveTo(leafX, leafY);
-        ctx.lineTo(
-          leafX + Math.cos(leftAngle) * leafLength,
-          leafY + Math.sin(leftAngle) * leafLength
-        );
-        ctx.stroke();
+        // Position along the quadratic curve
+        const frondX = (1-t)*(1-t)*curveEndX + 2*(1-t)*t*cpX + t*t*endX;
+        const frondY = (1-t)*(1-t)*curveEndY + 2*(1-t)*t*cpY + t*t*endY;
         
-        // Right leaf
-        const rightAngle = angle + Math.PI/2;
-        ctx.beginPath();
-        ctx.moveTo(leafX, leafY);
-        ctx.lineTo(
-          leafX + Math.cos(rightAngle) * leafLength,
-          leafY + Math.sin(rightAngle) * leafLength
-        );
-        ctx.stroke();
+        // Leaflet length tapers toward end
+        const leafletLength = (resolution * 0.15) * (1 - t * 0.5);
+        
+        // Angle of the frond at this point (tangent to the curve)
+        const frondAngle = angle + (t * Math.PI * 0.1);
+        
+        // Draw leaflets on both sides
+        for (const side of [-1, 1]) {
+          const leafletAngle = frondAngle + side * Math.PI/2;
+          
+          ctx.beginPath();
+          ctx.moveTo(frondX, frondY);
+          
+          // Add curve to the leaflet
+          const leafletCpX = frondX + Math.cos(leafletAngle) * leafletLength * 0.5;
+          const leafletCpY = frondY + Math.sin(leafletAngle) * leafletLength * 0.5;
+          
+          const leafletEndX = frondX + Math.cos(leafletAngle) * leafletLength;
+          const leafletEndY = frondY + Math.sin(leafletAngle) * leafletLength + leafletLength * side * 0.2;
+          
+          ctx.quadraticCurveTo(leafletCpX, leafletCpY, leafletEndX, leafletEndY);
+          ctx.stroke();
+        }
       }
     }
   }
