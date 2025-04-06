@@ -1,6 +1,7 @@
 import * as THREE from '../../../libs/three.module.js';
 import * as CANNON from '../../../libs/cannon-es.js';
 import { BaseMap } from './BaseMap.js';
+import { CityGenerator } from '../CityGenerator.js';
 
 /**
  * ManhattanMap class that implements a structured grid-based city layout
@@ -9,18 +10,33 @@ import { BaseMap } from './BaseMap.js';
  * Uses the Strategy Pattern for building placement strategies.
  */
 export class ManhattanMap extends BaseMap {
-  constructor(scene, physicsWorld) {
+  /**
+   * Create a new ManhattanMap
+   * @param {THREE.Scene} scene - The Three.js scene
+   * @param {CANNON.World} physicsWorld - The Cannon.js physics world
+   * @param {Object} [options] - Options for map creation
+   * @param {THREE.CubeTexture} [options.environmentMap] - Environment map for reflective materials
+   */
+  constructor(scene, physicsWorld, options = {}) {
     super(scene, physicsWorld);
     
-    // Manhattan specific settings
-    this.gridWidth = 7;  // Number of blocks in width direction
-    this.gridHeight = 7; // Number of blocks in height direction
+    // Initialize city generator with environment map if available
+    this.cityGenerator = new CityGenerator(scene, physicsWorld, {
+      environmentMap: options.environmentMap
+    });
     
-    // Central Park position (block coordinates)
-    this.centralParkX = 0;
-    this.centralParkY = 0;
-    this.centralParkWidth = 2;
-    this.centralParkHeight = 2;
+    // Manhattan layout configuration
+    this.gridWidth = 8;
+    this.gridHeight = 8;
+    
+    // Central Park configuration (grid coordinates)
+    this.centralParkX = 2;
+    this.centralParkY = 2;
+    this.centralParkWidth = 4;
+    this.centralParkHeight = 4;
+    
+    // Store the map of blocks we've created
+    this.blocks = {};
     
     // Tall buildings district (financial district / midtown equivalent)
     this.tallBuildingsStartX = -3;
@@ -510,5 +526,20 @@ export class ManhattanMap extends BaseMap {
     
     body.addShape(new CANNON.Box(new CANNON.Vec3(0.25, 2.5, 0.25)));
     this.physicsWorld.addBody(body);
+  }
+  
+  /**
+   * Override the createBuilding method to use the CityGenerator
+   * @param {number} x - X coordinate for building
+   * @param {number} z - Z coordinate for building
+   * @param {number} width - Width of building
+   * @param {number} depth - Depth of building
+   * @param {number} height - Height of building
+   * @param {number} materialIndex - Material index to use
+   * @returns {THREE.Mesh} The created building
+   */
+  createBuilding(x, z, width, depth, height, materialIndex = null) {
+    // Use the CityGenerator to create the building with textures
+    return this.cityGenerator.createBuilding(x, z, width, depth, height);
   }
 } 

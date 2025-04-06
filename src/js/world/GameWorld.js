@@ -13,8 +13,92 @@ export class GameWorld {
   }
   
   init() {
+    this.createEnvironmentMap();
     this.createGround();
     this.createSky();
+  }
+  
+  /**
+   * Create an environment map for reflective materials
+   */
+  createEnvironmentMap() {
+    // Create a simple procedural environment map
+    const resolution = 256;
+    const size = 6; // 6 sides of the cube
+    
+    // Create data for a procedural cubemap
+    const data = new Uint8Array(resolution * resolution * 4 * size);
+    
+    // Define colors for each face (+X, -X, +Y, -Y, +Z, -Z)
+    const faceColors = [
+      [60, 120, 160], // Right - light blue
+      [50, 80, 120],  // Left - darker blue
+      [100, 150, 200], // Top - sky blue
+      [60, 80, 30],   // Bottom - ground
+      [120, 160, 180], // Front - light blue-grey
+      [80, 100, 140]  // Back - mid blue
+    ];
+    
+    // Fill each face with gradient and some noise for a more natural look
+    for (let face = 0; face < 6; face++) {
+      const faceColor = faceColors[face];
+      const baseIndex = resolution * resolution * 4 * face;
+      
+      for (let y = 0; y < resolution; y++) {
+        for (let x = 0; x < resolution; x++) {
+          const index = baseIndex + (y * resolution + x) * 4;
+          
+          // Create gradient based on y position
+          const gradient = y / resolution;
+          
+          // Add some random noise
+          const noise = Math.random() * 0.1 - 0.05;
+          
+          // Calculate color with gradient and noise
+          data[index] = Math.min(255, Math.max(0, faceColor[0] * (gradient + 0.5 + noise)));
+          data[index + 1] = Math.min(255, Math.max(0, faceColor[1] * (gradient + 0.5 + noise)));
+          data[index + 2] = Math.min(255, Math.max(0, faceColor[2] * (gradient + 0.5 + noise)));
+          data[index + 3] = 255; // Alpha
+        }
+      }
+    }
+    
+    // Create the cubemap texture
+    const envMap = new THREE.DataTexture(
+      data, resolution, resolution,
+      THREE.RGBAFormat, THREE.UnsignedByteType,
+      THREE.CubeTexture.DEFAULT_MAPPING,
+      THREE.ClampToEdgeWrapping, THREE.ClampToEdgeWrapping,
+      THREE.LinearFilter, THREE.LinearMipmapLinearFilter
+    );
+    
+    // Convert to cubemap texture
+    const cubeSize = resolution;
+    const textureCube = new THREE.CubeTexture();
+    
+    for (let i = 0; i < 6; i++) {
+      const faceData = new Uint8Array(cubeSize * cubeSize * 4);
+      const offset = i * cubeSize * cubeSize * 4;
+      
+      for (let j = 0; j < cubeSize * cubeSize * 4; j++) {
+        faceData[j] = data[offset + j];
+      }
+      
+      const faceTexture = new THREE.DataTexture(
+        faceData, cubeSize, cubeSize,
+        THREE.RGBAFormat, THREE.UnsignedByteType
+      );
+      
+      faceTexture.needsUpdate = true;
+      textureCube.images[i] = faceTexture;
+    }
+    
+    textureCube.needsUpdate = true;
+    textureCube.mapping = THREE.CubeReflectionMapping;
+    
+    // Store for use with materials
+    this.environmentMap = textureCube;
+    this.scene.environment = textureCube;
   }
   
   createGround() {
@@ -189,5 +273,13 @@ export class GameWorld {
   
   update(deltaTime) {
     // Update any world elements that need time-based updates
+  }
+  
+  /**
+   * Get the environment map for use with materials
+   * @returns {THREE.CubeTexture} Environment map texture
+   */
+  getEnvironmentMap() {
+    return this.environmentMap;
   }
 } 

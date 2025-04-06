@@ -5,10 +5,18 @@ import { ManhattanMap } from './ManhattanMap.js';
  * Uses the Factory Method pattern to create different types of maps.
  */
 export class MapManager {
-  constructor(scene, physicsWorld) {
+  /**
+   * Create a new MapManager
+   * @param {THREE.Scene} scene - The Three.js scene
+   * @param {CANNON.World} physicsWorld - The Cannon.js physics world
+   * @param {Object} [options] - Options for map creation
+   * @param {THREE.CubeTexture} [options.environmentMap] - Environment map for reflective materials
+   */
+  constructor(scene, physicsWorld, options = {}) {
     this.scene = scene;
     this.physicsWorld = physicsWorld;
     this.currentMap = null;
+    this.options = options;
   }
   
   /**
@@ -19,12 +27,12 @@ export class MapManager {
   createMap(mapType) {
     switch (mapType.toLowerCase()) {
       case 'manhattan':
-        this.currentMap = new ManhattanMap(this.scene, this.physicsWorld);
+        this.currentMap = new ManhattanMap(this.scene, this.physicsWorld, this.options);
         break;
       // Add other map types here as they are created
       default:
         console.warn(`Unknown map type: ${mapType}. Defaulting to Manhattan.`);
-        this.currentMap = new ManhattanMap(this.scene, this.physicsWorld);
+        this.currentMap = new ManhattanMap(this.scene, this.physicsWorld, this.options);
     }
     
     // Generate the map

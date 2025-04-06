@@ -1,17 +1,32 @@
 import * as THREE from '../../libs/three.module.js';
 import * as CANNON from '../../libs/cannon-es.js';
+import { BuildingTextureService } from '../utils/BuildingTextureService.js';
 
 /**
  * Factory pattern implementation for generating city elements
  */
 export class CityGenerator {
-  constructor(scene, physicsWorld) {
+  /**
+   * Create a new city generator
+   * @param {THREE.Scene} scene - The Three.js scene
+   * @param {CANNON.World} physicsWorld - The Cannon.js physics world
+   * @param {Object} [options] - Options for city generation
+   * @param {THREE.CubeTexture} [options.environmentMap] - Environment map for reflective building materials
+   */
+  constructor(scene, physicsWorld, options = {}) {
     this.scene = scene;
     this.physicsWorld = physicsWorld;
     
     this.blockSize = 50;
     this.roadWidth = 10;
     this.sidewalkWidth = 3;
+    
+    // Initialize texture service
+    this.textureService = new BuildingTextureService();
+    
+    // Initialize with environment map if provided
+    const envMap = options.environmentMap || null;
+    this.textureService.init(10, 512, envMap); // 10 textures at 512x512 resolution
     
     // Materials
     this.buildingMaterials = [
@@ -137,10 +152,33 @@ export class CityGenerator {
     building.position.set(x, height / 2, z);
     building.castShadow = true;
     building.receiveShadow = true;
+    
+    // Apply texture based on building characteristics
+    let buildingType = 'office'; // Default type
+    
+    // Determine building type based on height and randomness
+    if (height > 40) {
+      // Tall buildings are more likely to be glass or office buildings
+      buildingType = Math.random() < 0.7 ? 'glass' : 'office';
+    } else if (height > 25) {
+      // Medium buildings could be any type
+      const rand = Math.random();
+      buildingType = rand < 0.4 ? 'office' : (rand < 0.7 ? 'glass' : 'residential');
+    } else {
+      // Shorter buildings are most likely residential
+      buildingType = Math.random() < 0.8 ? 'residential' : 'office';
+    }
+    
+    // Apply facade texture using the texture service
+    this.textureService.applyTexture(building, {
+      type: buildingType,
+      height: height,
+      positionKey: `${x.toFixed(1)}_${z.toFixed(1)}`
+    });
+    
     this.scene.add(building);
     
-    // Add windows for visual interest
-    this.addWindowsToBuilding(building, width, height, depth);
+    // We no longer need to add windows as they're now part of the texture
     
     // Physics body
     const shape = new CANNON.Box(new CANNON.Vec3(width / 2, height / 2, depth / 2));
@@ -151,75 +189,8 @@ export class CityGenerator {
     
     body.addShape(shape);
     this.physicsWorld.addBody(body);
-  }
-  
-  addWindowsToBuilding(building, width, height, depth) {
-    // Simple window pattern - can be enhanced for more detailed buildings
-    const windowSize = 1.2;
-    const windowSpacing = 2.5;
-    const windowDepth = 0.1;
     
-    const windowGeometry = new THREE.BoxGeometry(windowSize, windowSize, windowDepth);
-    const windowMaterial = new THREE.MeshStandardMaterial({ 
-      color: 0xadd8e6, 
-      roughness: 0.2, 
-      metalness: 0.8,
-      emissive: 0x333333
-    });
-    
-    // Calculate windows per side
-    const widthWindows = Math.floor(width / windowSpacing) - 1;
-    const heightWindows = Math.floor(height / windowSpacing) - 1;
-    
-    // Only add windows if the building is big enough
-    if (widthWindows <= 1 || heightWindows <= 1) return;
-    
-    // Add windows to front and back
-    for (let y = 1; y < heightWindows; y++) {
-      for (let x = 1; x < widthWindows; x++) {
-        // Skip some windows randomly for variety
-        if (Math.random() < 0.3) continue;
-        
-        const windowX = (x * windowSpacing) - (width / 2) + (windowSpacing / 2);
-        const windowY = (y * windowSpacing) - (height / 2) + (windowSpacing / 2);
-        
-        // Front windows
-        const frontWindow = new THREE.Mesh(windowGeometry, windowMaterial);
-        frontWindow.position.set(windowX, windowY, depth / 2 + 0.1);
-        building.add(frontWindow);
-        
-        // Back windows
-        const backWindow = new THREE.Mesh(windowGeometry, windowMaterial);
-        backWindow.position.set(windowX, windowY, -depth / 2 - 0.1);
-        building.add(backWindow);
-      }
-    }
-    
-    // Calculate windows for sides
-    const depthWindows = Math.floor(depth / windowSpacing) - 1;
-    
-    // Add windows to sides
-    for (let y = 1; y < heightWindows; y++) {
-      for (let z = 1; z < depthWindows; z++) {
-        // Skip some windows randomly
-        if (Math.random() < 0.3) continue;
-        
-        const windowZ = (z * windowSpacing) - (depth / 2) + (windowSpacing / 2);
-        const windowY = (y * windowSpacing) - (height / 2) + (windowSpacing / 2);
-        
-        // Left windows
-        const leftWindow = new THREE.Mesh(windowGeometry, windowMaterial);
-        leftWindow.position.set(-width / 2 - 0.1, windowY, windowZ);
-        leftWindow.rotation.y = Math.PI / 2;
-        building.add(leftWindow);
-        
-        // Right windows
-        const rightWindow = new THREE.Mesh(windowGeometry, windowMaterial);
-        rightWindow.position.set(width / 2 + 0.1, windowY, windowZ);
-        rightWindow.rotation.y = Math.PI / 2;
-        building.add(rightWindow);
-      }
-    }
+    return building;
   }
   
   createPark(x, z) {

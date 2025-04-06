@@ -114,8 +114,11 @@ class Game {
     // Create game world
     this.gameWorld = new GameWorld(this.scene, this.physicsWorld);
     
-    // Initialize map manager and create Manhattan map
-    this.mapManager = new MapManager(this.scene, this.physicsWorld);
+    // Initialize map manager and create Manhattan map with access to environment map
+    this.mapManager = new MapManager(this.scene, this.physicsWorld, {
+      environmentMap: this.gameWorld.getEnvironmentMap()
+    });
+    
     this.mapManager.createMap('manhattan');
     
     // Create player vehicle
