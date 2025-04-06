@@ -8,6 +8,7 @@ import { Vehicle } from './entities/Vehicle.js';
 import { CityGenerator } from './world/CityGenerator.js';
 import { InputHandler } from './core/InputHandler.js';
 import { MobileControls } from './ui/MobileControls.js';
+import { FullscreenButton } from './ui/FullscreenButton.js';
 
 class Game {
   constructor() {
@@ -135,6 +136,9 @@ class Game {
     
     // Initialize mobile controls
     this.mobileControls = new MobileControls(this.input);
+    
+    // Initialize fullscreen button
+    this.fullscreenButton = new FullscreenButton();
     
     // Add mouse event listeners for panning
     window.addEventListener('mousedown', this.handleMouseDown.bind(this));
