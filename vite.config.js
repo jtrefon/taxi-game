@@ -10,18 +10,11 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
-    sourcemap: true,
-    rollupOptions: {
-      input: {
-        main: resolve(__dirname, 'index.html')
-      }
-    }
+    sourcemap: true
   },
   resolve: {
     alias: {
-      '@': resolve(__dirname, './src'),
-      'three': resolve(__dirname, 'node_modules/three'),
-      'cannon-es': resolve(__dirname, 'node_modules/cannon-es')
+      '@': resolve(__dirname, './src')
     }
   },
   optimizeDeps: {
