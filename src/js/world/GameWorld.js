@@ -19,7 +19,7 @@ export class GameWorld {
   
   createGround() {
     // Visual ground (Three.js)
-    const groundGeometry = new THREE.PlaneGeometry(1500, 1500, 50, 50);
+    const groundGeometry = new THREE.PlaneGeometry(1500, 1500, 20, 20);
     
     // Create a procedural grass-like texture
     const groundMaterial = new THREE.MeshStandardMaterial({ 
@@ -153,7 +153,7 @@ export class GameWorld {
   createSky() {
     // Simple sky with gradient color
     const sky = new THREE.Mesh(
-      new THREE.SphereGeometry(500, 32, 32),
+      new THREE.SphereGeometry(500, 16, 16),
       new THREE.ShaderMaterial({
         uniforms: {
           topColor: { value: new THREE.Color(0x0077ff) },

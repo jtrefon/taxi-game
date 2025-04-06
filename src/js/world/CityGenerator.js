@@ -255,7 +255,7 @@ export class CityGenerator {
   
   createTree(x, z) {
     // Tree trunk
-    const trunkGeometry = new THREE.CylinderGeometry(0.5, 0.7, 4, 8);
+    const trunkGeometry = new THREE.CylinderGeometry(0.5, 0.7, 4, 6);
     const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
     const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
     trunk.position.set(x, 2, z);
@@ -263,7 +263,7 @@ export class CityGenerator {
     this.scene.add(trunk);
     
     // Tree foliage
-    const foliageGeometry = new THREE.ConeGeometry(3, 6, 8);
+    const foliageGeometry = new THREE.ConeGeometry(3, 6, 6);
     const foliageMaterial = new THREE.MeshStandardMaterial({ color: 0x2E8B57 });
     const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
     foliage.position.set(x, 6, z);
@@ -271,7 +271,7 @@ export class CityGenerator {
     this.scene.add(foliage);
     
     // Add simple physics for the tree
-    const trunkShape = new CANNON.Cylinder(0.5, 0.7, 4, 8);
+    const trunkShape = new CANNON.Cylinder(0.5, 0.7, 4, 6);
     const trunkBody = new CANNON.Body({
       mass: 0,
       position: new CANNON.Vec3(x, 2, z)

@@ -121,7 +121,7 @@ export class Vehicle {
       this.options.wheelRadius, 
       this.options.wheelRadius, 
       0.3, 
-      24
+      16
     );
     
     const wheelMaterial = new THREE.MeshStandardMaterial({ 
@@ -144,7 +144,7 @@ export class Vehicle {
     this.chassisMesh.add(cabin);
     
     // Add headlights
-    const headlightGeometry = new THREE.SphereGeometry(0.2, 16, 16);
+    const headlightGeometry = new THREE.SphereGeometry(0.2, 8, 8);
     const headlightMaterial = new THREE.MeshStandardMaterial({ 
       color: 0xffffff,
       emissive: 0xffffcc,
@@ -227,8 +227,8 @@ export class Vehicle {
       const wheelGeometry = new THREE.CylinderGeometry(
         wheelInfo.radius, 
         wheelInfo.radius, 
-        0.3, // This is the width of the wheel
-        24
+        0.3, 
+        16
       );
       
       // Rotate the wheel geometry so its central axis aligns with the X-axis (right direction)
