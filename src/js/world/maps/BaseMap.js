@@ -206,8 +206,8 @@ export class BaseMap {
     
     // Create center divider (solid double yellow line)
     const centerDividerGeometry = new THREE.PlaneGeometry(
-      isHorizontal ? length : centerLineWidth,
-      isHorizontal ? centerLineWidth : length
+      isHorizontal ? length : 0.3, // Reduced width to 0.3 from centerLineWidth
+      isHorizontal ? 0.3 : length  // Reduced width to 0.3 from centerLineWidth
     );
     
     const centerDividerMaterial = new THREE.MeshBasicMaterial({ color: 0xFFD700 }); // Yellow center line
@@ -391,28 +391,34 @@ export class BaseMap {
     const stripeCount = 8;
     const totalWidth = stripeCount * (stripeWidth + stripeSpacing) - stripeSpacing;
     
-    // Create white stripes
-    for (let i = 0; i < stripeCount; i++) {
-      const stripePosition = -totalWidth/2 + i * (stripeWidth + stripeSpacing) + stripeWidth/2;
+    // Create two crosswalks at each end of the road
+    for (let end = 0; end < 2; end++) {
+      const endFactor = end === 0 ? -1 : 1;
+      const endOffset = endFactor * (length/2 - totalWidth/2 - 5); // Position 5 units from the end of the road
       
-      const stripeGeometry = new THREE.PlaneGeometry(
-        isHorizontal ? stripeWidth : stripeLength,
-        isHorizontal ? stripeLength : stripeWidth
-      );
-      
-      const stripeMaterial = new THREE.MeshBasicMaterial({ color: 0xFFFFFF });
-      
-      const stripe = new THREE.Mesh(stripeGeometry, stripeMaterial);
-      stripe.rotation.x = -Math.PI / 2;
-      
-      // Position the stripe at both ends of the road
-      if (isHorizontal) {
-        stripe.position.set(x + stripePosition, 0.07, z);
-      } else {
-        stripe.position.set(x, 0.07, z + stripePosition);
+      // Create white stripes
+      for (let i = 0; i < stripeCount; i++) {
+        const stripePosition = i * (stripeWidth + stripeSpacing);
+        
+        const stripeGeometry = new THREE.PlaneGeometry(
+          isHorizontal ? stripeWidth : stripeLength,
+          isHorizontal ? stripeLength : stripeWidth
+        );
+        
+        const stripeMaterial = new THREE.MeshBasicMaterial({ color: 0xFFFFFF });
+        
+        const stripe = new THREE.Mesh(stripeGeometry, stripeMaterial);
+        stripe.rotation.x = -Math.PI / 2;
+        
+        // Position the stripe based on road orientation
+        if (isHorizontal) {
+          stripe.position.set(x + endOffset + stripePosition, 0.07, z);
+        } else {
+          stripe.position.set(x, 0.07, z + endOffset + stripePosition);
+        }
+        
+        this.scene.add(stripe);
       }
-      
-      this.scene.add(stripe);
     }
   }
   
