@@ -514,67 +514,37 @@ export class ManhattanMap extends BaseMap {
   addTrafficLights() {
     const blockSize = this.blockSize;
     const roadWidth = this.roadWidth;
-    const sidewalkWidth = this.sidewalkWidth;
-    
-    // Place even fewer traffic lights (increase spacing)
-    for (let x = 0; x <= this.gridWidth; x += 4) { // Every 4th intersection
-      for (let z = 0; z <= this.gridHeight; z += 4) { // Every 4th intersection
-        const intersectionX = (x - this.gridWidth / 2) * (blockSize + roadWidth);
-        const intersectionZ = (z - this.gridHeight / 2) * (blockSize + roadWidth);
-        
+    const step = blockSize + roadWidth;
+    const minX = (-this.gridWidth / 2) * step - roadWidth / 2;
+    const minZ = (-this.gridHeight / 2) * step - roadWidth / 2;
+
+    // Place traffic lights at intersections using the BaseMap method
+    // Reduced frequency for performance: every 2nd intersection
+    for (let i = 0; i <= this.gridWidth; i += 2) {
+      for (let j = 0; j <= this.gridHeight; j += 2) {
+        const x = minX + i * step;
+        const z = minZ + j * step;
+
         // Skip placing traffic lights in Central Park area
+        const gridX = i;
+        const gridZ = j;
         const isInParkX = (
-          x >= this.centralParkX && 
-          x < this.centralParkX + this.centralParkWidth
+          gridX >= this.centralParkX &&
+          gridX < this.centralParkX + this.centralParkWidth
         );
         const isInParkZ = (
-          z >= this.centralParkY && 
-          z < this.centralParkY + this.centralParkHeight
+          gridZ >= this.centralParkY &&
+          gridZ < this.centralParkY + this.centralParkHeight
         );
-        
+
         if (!(isInParkX && isInParkZ)) {
-          // Place traffic light at the corner of the intersection (northwest corner)
-          const lightX = intersectionX - (roadWidth/2) - (sidewalkWidth/2);
-          const lightZ = intersectionZ - (roadWidth/2) - (sidewalkWidth/2);
-          this.createTrafficLight(lightX, lightZ);
+          // Call the BaseMap's addTrafficLight method
+          // Pass intersection center (x, z) and road dimensions
+          // The BaseMap method handles placing 4 lights at corners
+          this.addTrafficLight(x, z, roadWidth, roadWidth, false); // isHorizontal doesn't matter much here as BaseMap calculates corners
         }
       }
     }
-  }
-  
-  /**
-   * Create a traffic light at the specified position
-   */
-  createTrafficLight(x, z) {
-    // Simplified traffic light - single box with material
-    // Traffic light pole
-    const poleGeometry = new THREE.BoxGeometry(0.5, 5, 0.5);
-    const poleMaterial = new THREE.MeshStandardMaterial({ color: 0x333333 });
-    const pole = new THREE.Mesh(poleGeometry, poleMaterial);
-    pole.position.set(x, 2.5, z);
-    pole.castShadow = true;
-    this.scene.add(pole);
-    
-    // Traffic light housing - simpler geometry
-    const housingGeometry = new THREE.BoxGeometry(0.8, 1.8, 0.8);
-    const housingMaterial = new THREE.MeshStandardMaterial({ 
-      color: 0x111111,
-      emissive: 0x555555,
-      emissiveIntensity: 0.2
-    });
-    const housing = new THREE.Mesh(housingGeometry, housingMaterial);
-    housing.position.set(x, 5, z);
-    housing.castShadow = true;
-    this.scene.add(housing);
-    
-    // Physics body only for the pole to reduce complexity
-    const body = new CANNON.Body({
-      mass: 0,
-      position: new CANNON.Vec3(x, 2.5, z)
-    });
-    
-    body.addShape(new CANNON.Box(new CANNON.Vec3(0.25, 2.5, 0.25)));
-    this.physicsWorld.addBody(body);
   }
   
   /**

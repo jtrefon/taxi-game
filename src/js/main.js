@@ -46,6 +46,13 @@ class Game {
     this.targetCameraYaw = 0;       // Target camera yaw (matches vehicle)
     this.turnSmoothFactor = 0.15;   // How quickly camera base follows turns (higher = faster)
     
+    // Traffic Light State
+    this.trafficLights = []; // Will hold references from BaseMap
+    this.trafficLightTimer = 0;
+    this.trafficLightInterval = 5000; // 5 seconds in milliseconds
+    this.trafficLightStateNS = 'green'; // Initial state for North-South direction
+    this.trafficLightStateEW = 'red';   // Initial state for East-West direction
+    
     // Initialize systems
     this.initThree();
     this.initPhysics();
@@ -121,12 +128,16 @@ class Game {
     // Create game world
     this.gameWorld = new GameWorld(this.scene, this.physicsWorld);
     
-    // Initialize map manager and create Manhattan map with access to environment map
+    // Initialize map manager and create Manhattan map
     this.mapManager = new MapManager(this.scene, this.physicsWorld, {
       environmentMap: this.gameWorld.getEnvironmentMap()
     });
-    
-    this.mapManager.createMap('manhattan');
+    this.currentMap = this.mapManager.createMap('manhattan'); // Store reference to the map
+
+    // Get traffic light systems from the created map
+    if (this.currentMap && typeof this.currentMap.getTrafficLightSystems === 'function') {
+      this.trafficLights = this.currentMap.getTrafficLightSystems();
+    }
     
     // Create player vehicle
     this.playerVehicle = new Vehicle(this.scene, this.physicsWorld, {
@@ -272,9 +283,65 @@ class Game {
     }
   }
   
+  updateTrafficLights(deltaTime) {
+    this.trafficLightTimer += deltaTime * 1000; // Convert deltaTime (seconds) to milliseconds
+
+    if (this.trafficLightTimer >= this.trafficLightInterval) {
+      this.trafficLightTimer = 0;
+
+      // Swap states
+      const tempState = this.trafficLightStateNS;
+      this.trafficLightStateNS = this.trafficLightStateEW;
+      this.trafficLightStateEW = tempState;
+
+      // Update light visuals
+      this.trafficLights.forEach(lightBox => {
+        // Safety Check: Ensure lightBox exists and has userData
+        if (!lightBox || !lightBox.userData || typeof lightBox.userData.direction === 'undefined') {
+          console.warn('Skipping invalid traffic lightBox:', lightBox);
+          return; // Skip this lightBox if invalid
+        }
+
+        const direction = lightBox.userData.direction;
+        const targetState = (direction === 'NS') ? this.trafficLightStateNS : this.trafficLightStateEW;
+
+        // Safety Check: Ensure lightBox has children array
+        if (!Array.isArray(lightBox.children)) {
+          console.warn('Skipping lightBox with no children:', lightBox);
+          return;
+        }
+
+        lightBox.children.forEach(lightMesh => {
+          // Safety Check: Ensure lightMesh is a Mesh and has userData and material
+          if (!lightMesh || !(lightMesh instanceof THREE.Mesh) || !lightMesh.userData || typeof lightMesh.userData.color === 'undefined' || !lightMesh.material) {
+            // console.log('Skipping non-light mesh or invalid mesh in lightBox:', lightMesh); // Optional: log skipped children
+            return; // Skip this child if it's not a valid light mesh
+          }
+
+          const color = lightMesh.userData.color;
+          let newIntensity = lightMesh.material.emissiveIntensity; // Default to current
+
+          if (color === 'yellow') {
+            newIntensity = 0; // Keep yellow off for now
+          } else if (color === targetState) {
+            newIntensity = 1.0; // Turn target light ON
+          } else {
+            newIntensity = 0.05; // Keep other light dimly ON (or fully OFF: 0)
+          }
+
+          // Only update if intensity changed
+          if (lightMesh.material.emissiveIntensity !== newIntensity) {
+            lightMesh.material.emissiveIntensity = newIntensity;
+            lightMesh.material.needsUpdate = true; // Ensure material change takes effect
+          }
+        });
+      });
+    }
+  }
+  
   update(deltaTime) {
-    // Update physics
-    this.physicsWorld.step(1/60, deltaTime, 3);
+    // Update physics world
+    this.physicsWorld.step(1 / 60, deltaTime, 3);
     
     // Update game world
     this.gameWorld.update(deltaTime);
@@ -286,6 +353,9 @@ class Game {
     
     // Update camera
     this.updateCamera();
+    
+    // Update traffic lights
+    this.updateTrafficLights(deltaTime);
     
     // Update HUD
     this.updateHUD();

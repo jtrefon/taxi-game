@@ -9,6 +9,7 @@ export class BaseMap {
   constructor(scene, physicsWorld) {
     this.scene = scene;
     this.physicsWorld = physicsWorld;
+    this.trafficLightSystems = []; // Array to hold traffic light boxes
     
     // Common map properties
     this.blockSize = 50;
@@ -659,15 +660,25 @@ export class BaseMap {
         const lightMaterial = new THREE.MeshStandardMaterial({
           color: light.color,
           emissive: light.color,
-          emissiveIntensity: 0.5
+          emissiveIntensity: light.color === 0xFFFF00 ? 0 : 0.05, // Start with only red/green slightly emissive, yellow off
+          metalness: 0.1, // Added for consistency
+          roughness: 0.5 // Added for consistency
         });
         
         const trafficLight = new THREE.Mesh(lightGeometry, lightMaterial);
         trafficLight.position.set(0, light.y, lightBoxDepth/2 + 0.01);
+        trafficLight.userData = { color: light.color === 0xFF0000 ? 'red' : (light.color === 0x00FF00 ? 'green' : 'yellow') }; // Store color name
         
         // Add to light box
         lightBox.add(trafficLight);
       });
+      
+      // Assign direction based on corner (simplified: 0,1 face EW streets; 2,3 face NS avenues)
+      const direction = (corner === 0 || corner === 1) ? 'EW' : 'NS';
+      lightBox.userData = { direction: direction }; // Add direction to lightBox userData
+      
+      // Add the controllable light system to the list
+      this.trafficLightSystems.push(lightBox);
       
       // Add physics body for the traffic light pole
       const poleShape = new CANNON.Cylinder(poleRadius, poleRadius, poleHeight, 8);
@@ -678,6 +689,10 @@ export class BaseMap {
       poleBody.addShape(poleShape);
       this.physicsWorld.addBody(poleBody);
     }
+  }
+  
+  getTrafficLightSystems() {
+    return this.trafficLightSystems;
   }
   
   createPark(x, z, width, height) {
