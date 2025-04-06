@@ -10,9 +10,16 @@
 <body>
   <div id="game-container">
     <div id="loading-screen">Loading...</div>
-    <div id="hud">
-      <div id="speed">0 mph</div>
-      <div id="money">$0</div>
+    <div id="ui-container">
+      <div class="info-box">
+        <span id="speed">0 mph</span>
+      </div>
+      <div class="info-box">
+        <span id="money">$0</span>
+      </div>
+      <div class="info-box" id="fps-counter" style="display: block;">FPS: --</div>
+      <div id="mobile-controls" class="mobile-controls-container"></div>
+      <button id="fullscreen-btn">Fullscreen</button>
     </div>
   </div>
   <script type="module" src="src/js/main.js"></script>

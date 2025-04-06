@@ -16,10 +16,17 @@ class Game {
     this.loadingScreen = document.getElementById('loading-screen');
     this.speedElement = document.getElementById('speed');
     this.moneyElement = document.getElementById('money');
+    this.fpsElement = document.getElementById('fps-counter'); // Get FPS element
     
     // Game state
     this.money = 0;
     this.isPlaying = false;
+    this.showFps = true; // Flag to control FPS counter visibility
+    
+    // FPS Calculation state
+    this.lastFrameTime = performance.now();
+    this.frameCount = 0;
+    this.fps = 0;
     
     // Camera panning state - Using angles now
     this.isPanning = false;
@@ -248,11 +255,21 @@ class Game {
   
   updateHUD() {
     // Update speed display
-    const speed = this.playerVehicle ? Math.round(this.playerVehicle.getSpeed() * 2.237) : 0; // Convert to mph
-    this.speedElement.textContent = `${speed} mph`;
+    if (this.playerVehicle) {
+      const speed = this.playerVehicle.getSpeed();
+      this.speedElement.textContent = `${Math.round(speed)} mph`;
+    }
     
     // Update money display
     this.moneyElement.textContent = `$${this.money}`;
+
+    // Update FPS display if enabled
+    if (this.showFps && this.fpsElement) {
+        this.fpsElement.textContent = `FPS: ${Math.round(this.fps)}`;
+        this.fpsElement.style.display = 'block'; // Ensure it's visible
+    } else if (this.fpsElement) {
+        this.fpsElement.style.display = 'none'; // Hide if disabled
+    }
   }
   
   update(deltaTime) {
@@ -272,6 +289,17 @@ class Game {
     
     // Update HUD
     this.updateHUD();
+
+    // Calculate FPS
+    const now = performance.now();
+    const delta = now - this.lastFrameTime;
+    this.frameCount++;
+
+    if (delta >= 1000) { // Update FPS counter every second
+        this.fps = (this.frameCount * 1000) / delta;
+        this.frameCount = 0;
+        this.lastFrameTime = now;
+    }
   }
   
   animate() {
