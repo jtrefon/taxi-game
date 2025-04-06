@@ -7,6 +7,8 @@ import { GameWorld } from './world/GameWorld.js';
 import { Vehicle } from './entities/Vehicle.js';
 import { CityGenerator } from './world/CityGenerator.js';
 import { InputHandler } from './core/InputHandler.js';
+import { MobileControls } from './ui/MobileControls.js';
+import '../css/mobile-controls.css';
 
 class Game {
   constructor() {
@@ -131,6 +133,9 @@ class Game {
   
   initInput() {
     this.input = new InputHandler();
+    
+    // Initialize mobile controls
+    this.mobileControls = new MobileControls(this.input);
     
     // Add mouse event listeners for panning
     window.addEventListener('mousedown', this.handleMouseDown.bind(this));

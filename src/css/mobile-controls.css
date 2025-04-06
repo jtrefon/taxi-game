@@ -1,0 +1,70 @@
+.mobile-controls {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  z-index: 1000;
+  display: none; /* Hidden by default, will be shown for mobile devices */
+}
+
+.mobile-controls.active {
+  display: block;
+}
+
+.control-button {
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.3);
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  transition: background-color 0.2s;
+}
+
+.control-button:active {
+  background-color: rgba(255, 255, 255, 0.5);
+}
+
+.control-button svg {
+  width: 30px;
+  height: 30px;
+  fill: white;
+}
+
+/* Position the buttons */
+.control-up {
+  bottom: 140px;
+  left: 70px;
+}
+
+.control-down {
+  bottom: 20px;
+  left: 70px;
+}
+
+.control-left {
+  bottom: 80px;
+  left: 20px;
+}
+
+.control-right {
+  bottom: 80px;
+  left: 120px;
+}
+
+.control-brake {
+  bottom: 80px;
+  left: 200px;
+  background-color: rgba(255, 0, 0, 0.3);
+  border-color: rgba(255, 0, 0, 0.5);
+}
+
+.control-brake:active {
+  background-color: rgba(255, 0, 0, 0.5);
+} 
