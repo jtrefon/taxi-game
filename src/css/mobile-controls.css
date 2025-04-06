@@ -64,9 +64,13 @@
 .control-left {
   bottom: 30px;
   right: 160px;
+  background-color: rgba(0, 0, 255, 0.3);
+  border-color: rgba(0, 0, 255, 0.5);
 }
 
 .control-right {
   bottom: 30px;
   right: 30px;
+  background-color: rgba(0, 0, 255, 0.3);
+  border-color: rgba(0, 0, 255, 0.5);
 } 
