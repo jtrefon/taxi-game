@@ -1340,7 +1340,8 @@ export class BaseMap {
       isHorizontal ? z - sideOffset + sidewalkWidth / 2 : z
     );
     upperSidewalk.receiveShadow = true;
-    this.scene.add(upperSidewalk); // Store reference
+    this.scene.add(upperSidewalk);
+    this.sidewalkMeshes.push(upperSidewalk); // Store reference
     
     // Lower sidewalk
     const lowerSidewalk = new THREE.Mesh(sideGeometry, this.sidewalkMaterial);
